@@ -2,10 +2,10 @@ package com.ky3he4ik
 
 import org.telegram.telegrambots.api.objects.Message
 
-data class User(val id: Int, var username: String, var internalId: Int, var lastAccess: Int = 0,
+data class User(val id: Long, var username: String, var firstname: String, var internalId: Int, var lastAccess: Int = 0,
                 val settings: Settings = Settings()) {
     data class Settings(var type: Int = Type.CLASS.data, var typeInd: Int = 10, var notify: Boolean = true,
-                        var currentState: ArrayList<Int> = ArrayList<Int>(),
+                        var currentState: ArrayList<Int> = ArrayList(),
                         var defaultPresentation: Int = Presentation.ALL_WEEK.data,
                         var defaultPresentationChanges: Int = Presentation.ALL_CLASSES.data,
                         var defaultPresentationRooms: Int = Presentation.ALL_WEEK.data)
@@ -16,35 +16,40 @@ data class User(val id: Int, var username: String, var internalId: Int, var last
     }
 }
 
-data class Feedback(val userId: Int, val text: String, var internalId: Int,
+data class Feedback(val userId: Long, val text: String, var internalId: Int,
                     var condition: Int = FeedbackType.UNREAD.data)
 
-class Database(loadType: Int) {
-    private var timetable: Timetable
-    private val feedbackArray: ArrayList<Feedback>
-    private val users: HashMap<Int, User>
+class Database(loadType: Int = LoadType.READ.data) {
+    private val users: HashMap<Long, User>
+
+    var timetable: Timetable
+    val feedbackArray: ArrayList<Feedback>
 
     init {
         when (loadType) {
             LoadType.READ.data -> {
-                timetable = IO.readJSON<Timetable>("data/timetable.bv3.json")
-                feedbackArray = IO.readJSON<ArrayList<Feedback>>("data/feedback.bv3.json")
-                users = IO.readJSON<HashMap<Int, User>>("data/users.bv3.json")
+                timetable = IO.readJSON("data/timetable.bv3.json")
+                feedbackArray = IO.readJSON("data/feedback.bv3.json")
+                users = IO.readJSON("data/users.bv3.json")
                 println("Loaded from local files")
             }
             LoadType.CREATE.data -> {
-                users = HashMap<Int, User>()
-                feedbackArray = ArrayList<Feedback>()
+                users = HashMap()
+                feedbackArray = ArrayList()
                 timetable = TimetableBuilder.createTimetable()
             }
             else -> throw RuntimeException("$loadType is not supported")
         }
     }
 
-    fun addUser(message: Message) {
-        users[message.from.id] = User(message.from.id, message.from.userName, users.size, message.date)
+    fun setUserState(userId: Long, newState: ArrayList<Int>) {
+        if (hasUser(userId))
+            users[userId]!!.settings.currentState = newState
     }
-    fun updateUserSettings(userId: Int, type: Int, typeInd: Int): String {
+    fun hasUser(userId: Long): Boolean = users.containsKey(userId)
+    fun addUser(message: Message)
+            = addUser(message.from.id.toLong(), message.from.userName, message.from.firstName, message.date)
+    fun updateUserSettings(userId: Long, type: Int, typeInd: Int): String {
         if (typeInd == -1)
             return "Я не могу тебя узнать. Может еще разок?"
         val oldValues = Pair(users[userId]!!.settings.type, users[userId]!!.settings.typeInd)
@@ -88,14 +93,42 @@ class Database(loadType: Int) {
         for (it in 0 until feedbackArray.size)
             feedbackArray[it].internalId = it
     }
+    fun updateUserInfo(userId: Long, username: String, firstName: String, lastAccess: Int) {
+        if (users.containsKey(userId)) {
+            val user = getUser(userId)!!
+            user.username = username
+            user.firstname = firstName
+            user.lastAccess = lastAccess
+            users[userId] = user
+        } else
+            addUser(userId, username, firstName, lastAccess)
 
-    //TODO: fun addFeedback(userInd: Int, test: String)
 
-
-    private fun writeAll() {
+    }
+    fun writeAll() {
         IO.writeJSON("data/timetable.bv3.json", timetable)
         IO.writeJSON("data/feedbackArray.bv3.json", feedbackArray)
         IO.writeJSON("data/users.bv3.json", users)
+    }
+    fun addFeedback(userId: Long, text: String) {
+        feedbackArray.add(Feedback(userId, text, feedbackArray.size))
+        Common.sendMessage("FEEDBACK!", chatId = Constants.fatherInd, inlineKeyboard = null)
+    }
+    fun update(fast: Boolean, full: Boolean = true) {
+        val oldChanges = timetable.changes
+        if (full)
+            timetable = TimetableBuilder.createTimetable(fast)
+        else
+            timetable.changes = TimetableBuilder.getChanges(timetable, fast)
+        notifyChanges(oldChanges, timetable.changes)
+    }
+    fun getUser(userId: Long): User? = users[userId]
+    fun sendToAll(text: String) {
+        users.forEach { _, u -> Common.sendMessage(text, u.id, inlineKeyboard = null) }
+    }
+
+    private fun notifyChanges(oldChanges: Timetable.Changes, newChanges: Timetable.Changes): Boolean {
+        TODO()
     }
     private fun findInArray(string: String, array: ArrayList<String>): Int {
         var res = array.indexOf(string)
@@ -123,18 +156,7 @@ class Database(loadType: Int) {
     }
     private fun getClassInd(classStr: String): Int = getSomethingInd(classStr, timetable.classNames)
     private fun getTeacherInd(teacher: String): Int = getSomethingInd(teacher, timetable.teacherNames)
-    private fun getUser(userId: Int): User? = users[userId]
+    private fun addUser(userId: Long, username: String, firstname: String, lastAccess: Int) {
+        users[userId] = User(userId, username, firstname, users.size, lastAccess)
+    }
 }
-
-/*
-class Db:
-def add_feedback(self, user_chat_id=-1, text=None):
-        if len(self.feedback) == 0:
-            f_n = 0
-        else:
-            f_n = self.feedback[-1].self_num + 1
-        self.feedback.append(Feedback(user_chat_id, text, f_n))
-        self.write_feedback()
-        common.send_message(text="FEEDBACK", inline_keyboard=-1)
-
- */

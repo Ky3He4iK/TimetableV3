@@ -7,7 +7,8 @@ enum class Type(val data: Int) {
     USER(3),
     DAY(4),
     LESSON(5),
-    SUB_GROUP(6)
+    SUB_GROUP(6),
+    OTHER(-1)
 }
 
 enum class Presentation(val data: Int) {

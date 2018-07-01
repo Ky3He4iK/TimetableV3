@@ -4,15 +4,15 @@ import com.ky3he4ik.Timetable.Timetable.TimetableDay.TimetableLesson.TimetableCl
 
 data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: Int, val roomsCount: Int, val trap: Int = -1) {
     data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: Int) {
-        val days = Array(daysCount, { TimetableDay(lessonsCount, classCount) })
+        val days = Array(daysCount) { TimetableDay(lessonsCount, classCount) }
 
         data class TimetableDay(val lessonsCount: Int, val classCount: Int) {
-            val lessons = Array(lessonsCount, { TimetableLesson(classCount) })
+            val lessons = Array(lessonsCount) { TimetableLesson(classCount) }
 
             data class TimetableLesson(val classCount: Int) {
-                val classes = Array(classCount, { TimetableClass() })
+                val classes = Array(classCount) { TimetableClass() }
 
-                data class TimetableClass(val groups: ArrayList<TimetableCell> = ArrayList<TimetableCell>()) {
+                data class TimetableClass(val groups: ArrayList<TimetableCell> = ArrayList()) {
                     data class TimetableCell(val classInd: Int, val roomInd: Int, var teacherInd: Int,
                                              val subjects: ArrayList<String>, val groupInd: Int)
                 }
@@ -21,10 +21,10 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
     }
 
     data class FreeRooms(val daysCount: Int, val lessonsCount: Int, val roomsCount: Int) {
-        val days = Array(daysCount, { FreeRoomsDay(lessonsCount, roomsCount) })
+        private val days = Array(daysCount) { FreeRoomsDay(lessonsCount, roomsCount) }
 
         data class FreeRoomsDay(val lessonsCount: Int, val roomsCount: Int) {
-            val lessons = Array<FreeRoomsLesson>(lessonsCount, { FreeRoomsLesson(roomsCount) })
+            val lessons = Array(lessonsCount) { FreeRoomsLesson(roomsCount) }
 
             data class FreeRoomsLesson(val roomsCount: Int) {
                 val rooms = ArrayList<Int>()
@@ -34,7 +34,7 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
         fun setAll(timetable: com.ky3he4ik.Timetable) {
             for (dayInd in 0 until daysCount)
                 for (lessonNum in 0 until lessonsCount) {
-                    val isBusy = Array(roomsCount, { false })
+                    val isBusy = Array(roomsCount) { false }
                     for (classCells in timetable.timetable.days[dayInd].lessons[lessonNum].classes)
                         for (group in classCells.groups)
                             isBusy[group.roomInd] = true
@@ -44,12 +44,12 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
         fun getFreeRooms(timetable: com.ky3he4ik.Timetable, dayInd: Int = 7, lessonInd: Int = -1): String {
             if (dayInd == 7) {
                 val sb = StringBuilder()
-                Array(6, { getFreeRooms(timetable, it) }).forEach { sb.append(it).append("\n\n") }
+                Array(6) { getFreeRooms(timetable, it) }.forEach { sb.append(it).append("\n\n") }
                 return sb.substring(0, sb.length - 2)
             }
             if (lessonInd == -1) {
                 val sb = StringBuilder(timetable.dayNames[dayInd])
-                Array(7, { getFreeRooms(timetable, dayInd, it) }).forEach { sb.append(it).append("\n") }
+                Array(7) { getFreeRooms(timetable, dayInd, it) }.forEach { sb.append(it).append("\n") }
                 return sb.substring(0, sb.length - 1)
             }
             val sb =  StringBuilder(lessonInd + 1).append(". ")
@@ -63,15 +63,19 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
         fun getFreeRoomsNear(timetable: com.ky3he4ik.Timetable): String {
             val curDay: Int
             val curLes: Int
-            if (Common.currentDay > 5) {
-                curDay = 0
-                curLes = 0
-            } else if (Common.currentLesson > 6) {
-                curDay = (Common.currentDay + 1) % 6
-                curLes = 0
-            } else {
-                curDay = Common.currentDay
-                curLes = Common.currentLesson
+            when {
+                Common.currentDay > 5 -> {
+                    curDay = 0
+                    curLes = 0
+                }
+                Common.currentLesson > 6 -> {
+                    curDay = (Common.currentDay + 1) % 6
+                    curLes = 0
+                }
+                else -> {
+                    curDay = Common.currentDay
+                    curLes = Common.currentLesson
+                }
             }
             return getFreeRooms(timetable, curDay, curLes)
         }
@@ -86,7 +90,7 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
     }
 
     data class Changes(val classCount: Int, var dayInd: Int = -1) {
-        val hasChanges = Array(classCount, { false })
+        val hasChanges = Array(classCount) { false }
         val changes = ArrayList<ChangesClass>()
         val changeIndexes = HashMap<Int, Int>()
 
@@ -137,26 +141,66 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
     val dayNames = ArrayList<String>()
     val timetable = Timetable(daysCount, lessonsCount, classCount)
     val freeRooms = FreeRooms(daysCount, lessonsCount, roomsCount)
-    val changes = Changes(classCount)
-
-    fun find(array: ArrayList<String>, value: String): Int {
-        for (it in 0 until array.size)
-            if (array[it].equals(value, ignoreCase = true))
-                return it
-        return -1
-    }
+    var changes = Changes(classCount)
 
     fun findDay(dayName: String): Int = find(dayNames, dayName)
     fun findRoom(roomName: String): Int {
         val ind = find(roomNames, roomName)
         return if (ind == -1) find(roomInd, roomName) else ind
     }
-
     fun findTeacher(teacherName: String): Int = find(teacherNames, teacherName)
     fun findClass(className: String): Int = find(classNames, className)
-
     fun getCellByClass(dayInd: Int, lessonNum: Int, classInd: Int, groupInd: Int): TimetableCell =
             timetable.days[dayInd].lessons[lessonNum].classes[classInd].groups[groupInd]
+    fun getTimetable(type: Int, typeInd: Int, dayInd: Int = 7): String {
+        if (typeInd == -1)
+            return "Что-то пошло не так"
+        if (type == Type.ROOM.data && typeInd == trap)
+            return "ACCESS DENIED"
+        val timetable = getTimetableMain(type, typeInd, dayInd)
+        var text = getTimetableTitle(type, typeInd, dayInd) + if (timetable == "") "Нету расписания\n" else timetable
+        if (type == Type.CLASS.data && changes.hasChanges[typeInd])
+            text += "\nЕсть изменения\n" + changes.getChanges(this, typeInd, inline = true)
+        else if (changes.changes.size != 0)
+            text += "Есть изменения."
+        return text
+    }
+    fun getTimetableToday(type: Int, typeInd: Int): String = getTimetable(type, typeInd, Common.currentDay % 6)
+    fun getTimetableTomorrow(type: Int, typeInd: Int): String =
+            getTimetable(type, typeInd, if (Common.currentDay == 6) 0 else (Common.currentDay + 1) % 6)
+    fun getTimetableNear(type: Int, typeInd: Int): String {
+        val curDay: Int
+        val curLes: Int
+        when {
+            Common.currentDay > 5 -> {
+                curDay = 0
+                curLes = 0
+            }
+            Common.currentLesson > 6 -> {
+                curDay = (Common.currentDay + 1) % 6
+                curLes = 0
+            }
+            else -> {
+                curDay = Common.currentDay
+                curLes = Common.currentLesson
+            }
+        }
+        val title = when(type) {
+            Type.CLASS.data -> classNames[typeInd]
+            Type.ROOM.data -> roomNames[typeInd]
+            Type.TEACHER.data -> teacherNames[typeInd]
+            else -> "Что-то (или что-то) неизвестное"
+        } + ". ${dayNames[curDay]}. $curLes-й урок\n"
+        return title + getTimetableLesson(type, typeInd, curDay, curLes)
+    }
+    fun has(type: Int, ind: Int): Boolean {
+        return ind >= 0 && when(type) {
+            Type.CLASS.data -> ind < classCount
+            Type.ROOM.data -> ind < roomsCount
+            Type.TEACHER.data -> ind < teacherNames.size
+            else -> false
+        }
+    }
 
     private fun groupToStr(type: Int, timetableCell: TimetableCell): String {
         if (timetableCell.roomInd == trap)
@@ -169,7 +213,6 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
         val roomStr = if (type == Type.ROOM.data) "" else " в " + roomInd[timetableCell.roomInd] + ' '
         return classStr + groupStr + subjects.toString() + teacherStr + roomStr
     }
-
     private fun getTimetableLesson(type: Int, typeInd: Int, dayInd: Int, lessonInd: Int): String {
         val answer = StringBuilder(lessonInd + 1).append(": ")
         val lessons = ArrayList<TimetableCell>()
@@ -189,7 +232,6 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
         }
         return answer.toString()
     }
-
     private fun getTimetableMain(type: Int, typeInd: Int, dayInd: Int): String {
         if (dayInd == 7) {
             val sb = StringBuilder()
@@ -215,52 +257,16 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
         }
         return ""
     }
-
     private fun getTimetableTitle(type: Int, typeInd: Int, dayInd: Int): String = "Расписание для " + when (type) {
         Type.CLASS.data -> classNames[typeInd]
         Type.TEACHER.data -> teacherNames[typeInd]
         Type.ROOM.data -> if (typeInd == trap) "███" else roomInd[typeInd]
         else -> "чего-то"
     } + " на " + if (dayInd == 7) "всю неделю" else dayNames[dayInd] + "\n\n"
-
-    fun getTimetable(type: Int, typeInd: Int, dayInd: Int = 7): String {
-        if (typeInd == -1)
-            return "Что-то пошло не так"
-        if (type == Type.ROOM.data && typeInd == trap)
-            return "ACCESS DENIED"
-        val timetable = getTimetableMain(type, typeInd, dayInd)
-        var text = getTimetableTitle(type, typeInd, dayInd) + if (timetable == "") "Нету расписания\n" else timetable
-        if (type == Type.CLASS.data && changes.hasChanges[typeInd])
-            text += "\nЕсть изменения\n" + changes.getChanges(this, typeInd, inline = true)
-        else if (changes.changes.size != 0)
-            text += "Есть изменения."
-        return text
-    }
-
-    fun getTimetableToday(type: Int, typeInd: Int): String = getTimetable(type, typeInd, Common.currentDay % 6)
-
-    fun getTimetableTomorrow(type: Int, typeInd: Int): String = getTimetable(type, typeInd,
-            if (Common.currentDay == 6) 0 else (Common.currentDay + 1) % 6)
-
-    fun getTimetableNear(type: Int, typeInd: Int): String {
-        val curDay: Int
-        val curLes: Int
-        if (Common.currentDay > 5) {
-            curDay = 0
-            curLes = 0
-        } else if (Common.currentLesson > 6) {
-            curDay = (Common.currentDay + 1) % 6
-            curLes = 0
-        } else {
-            curDay = Common.currentDay
-            curLes = Common.currentLesson
-        }
-        val title = when(type) {
-            Type.CLASS.data -> classNames[typeInd]
-            Type.ROOM.data -> roomNames[typeInd]
-            Type.TEACHER.data -> teacherNames[typeInd]
-            else -> "Что-то (или что-то) неизвестное"
-        } + ". ${dayNames[curDay]}. $curLes-й урок\n"
-        return title + getTimetableLesson(type, typeInd, curDay, curLes)
+    private fun find(array: ArrayList<String>, value: String): Int {
+        for (it in 0 until array.size)
+            if (array[it].equals(value, ignoreCase = true))
+                return it
+        return -1
     }
 }

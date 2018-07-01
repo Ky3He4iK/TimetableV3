@@ -166,7 +166,7 @@ object TimetableBuilder {
         timetable.timetable.days[dayInd].lessons[lessonNum].classes[classInd].groups[groupInd] = timetableCell
     }
 
-    private fun getRawChanges(): String {
+    private fun getRawChanges(fast: Boolean): String {
         val page = IO.get(BotConfig.getURLTT(), mapOf(
                 "tmToc" to token,
                 "tmrType" to "1",
@@ -192,30 +192,15 @@ object TimetableBuilder {
         return 7
     }
 
-    private fun setChanges(timetable: Timetable) {
-        var rawChanges = getRawChanges()
-        timetable.changes.dayInd = getDayByChanges(rawChanges
-                .substring(rawChanges.indexOf("НА ") + "НА ".length))
-        rawChanges = rawChanges.substring(rawChanges.indexOf("</h3>") + "<h3>".length)
-                .replace("&nbsp;&mdash;", "-")
-        for (lesCh in rawChanges.split("<h6>")) {
-            if (lesCh.isEmpty())
-                continue
-            if (lesCh.contains("</h6>"))
-                setChangesSub(timetable, lesCh.substring(lesCh.indexOf("<p>")),
-                        timetable.findClass(lesCh.substring(0, lesCh.indexOf("<h6>"))))
-        }
-    }
-
-    private fun setChangesSub(timetable: Timetable, lesCh: String, classInd: Int) {
+    private fun setChangesSub(changes: Timetable.Changes, lesCh: String, classInd: Int) {
         if (classInd != 1) {
-            timetable.changes.hasChanges[classInd] = true
+            changes.hasChanges[classInd] = true
             val tmpArr =  ArrayList<String>()
             for (it in lesCh.split("<p>"))
                 if (it.length >= 2)
                     tmpArr.add(it.substring(0, it.indexOf("</p>")))
-            timetable.changes.changeIndexes[classInd] = timetable.changes.changes.size
-            timetable.changes.changes.add(Timetable.Changes.ChangesClass(classInd, tmpArr))
+            changes.changeIndexes[classInd] = changes.changes.size
+            changes.changes.add(Timetable.Changes.ChangesClass(classInd, tmpArr))
         }
     }
 
@@ -260,8 +245,25 @@ object TimetableBuilder {
         setClasses(timetable)
         setTeachers(timetable)
         timetable.freeRooms.setAll(timetable)
-        setChanges(timetable)
+        timetable.changes = getChanges(timetable, fast)
 
         return timetable
+    }
+
+    fun getChanges(timetable: Timetable, fast: Boolean = BotConfig.isDebug): Timetable.Changes {
+        var rawChanges = getRawChanges(fast)
+        val changes = Timetable.Changes(timetable.classCount)
+        changes.dayInd = getDayByChanges(rawChanges
+                .substring(rawChanges.indexOf("НА ") + "НА ".length))
+        rawChanges = rawChanges.substring(rawChanges.indexOf("</h3>") + "<h3>".length)
+                .replace("&nbsp;&mdash;", "-")
+        for (lesCh in rawChanges.split("<h6>")) {
+            if (lesCh.isEmpty())
+                continue
+            if (lesCh.contains("</h6>"))
+                setChangesSub(changes, lesCh.substring(lesCh.indexOf("<p>")),
+                        timetable.findClass(lesCh.substring(0, lesCh.indexOf("<h6>"))))
+        }
+        return changes
     }
 }

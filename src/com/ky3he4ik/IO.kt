@@ -9,7 +9,7 @@ import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 
 internal object IO {
-    fun write(filename: String, text: String, overwrite: Boolean = true) {
+    private fun write(filename: String, text: String, overwrite: Boolean = true) {
         val file = File(filename)
         if (!file.exists())
             while (file.createNewFile());
@@ -20,7 +20,7 @@ internal object IO {
         file.writeText(text)
     }
 
-    fun read(filename: String) : String{
+    private fun read(filename: String) : String{
         val file = File(filename)
         if (!file.exists())
             throw FileNotFoundException("$filename does not exists")
