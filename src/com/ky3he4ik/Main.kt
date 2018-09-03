@@ -22,8 +22,8 @@ import kotlin.concurrent.thread
 
 fun main(args: Array<String>) {
     BotConfig.isDebug = true
-    val timetable = TimetableBuilder.createTimetable(true)
-    IO.writeJSON("timetable.json", timetable)
+//    val timetable = TimetableBuilder.createTimetable(true)
+//    IO.writeJSON("timetable.json", timetable)
     thread(isDaemon = true, name = "Time thread") { while (true) {
         try {
             var hour = LocalDateTime.now().hour + 3
@@ -32,6 +32,8 @@ fun main(args: Array<String>) {
                 hour -= 24
                 day = (day + 1) % 7
             }
+            if (day > 0)
+                day--
             Common.currentLesson = getLesson(hour, LocalDateTime.now().minute)
             Common.currentDay = day
             println("$day $hour")
@@ -42,8 +44,10 @@ fun main(args: Array<String>) {
         }
     }
     }
-//    main(args.isNotEmpty())
+    main(args.isNotEmpty())
 }
+
+//TODO: changes notify
 
 fun getLesson(hour: Int, minutes: Int): Int {
     for (it in 0 until Constants.lessonTimes.size)
@@ -52,7 +56,6 @@ fun getLesson(hour: Int, minutes: Int): Int {
             return it
     return 7
 }
-
 
 fun main(debug: Boolean) {
     val logTag = "INIT"
@@ -89,26 +92,41 @@ class Main : TelegramLongPollingBot() {
             while (true) {
                 try {
                     if (Common.emergencyMessageQueue.isNotEmpty()) {
-                        sendMessage(Common.emergencyMessageQueue.first)
+                        try {
+                            sendMessage(Common.emergencyMessageQueue.first)
+                        } catch (e: TelegramApiException) {
+                            println("${Common.emergencyMessageQueue.first.text} ${e.message}")
+                            e.printStackTrace()
+                        }
                         Common.emergencyMessageQueue.removeFirst()
                         Thread.sleep((1000 / 30.0).toLong())
                     } else if (Common.messageQueue.isNotEmpty()) {
-                        sendMessage(Common.messageQueue.first)
+                        try {
+                            sendMessage(Common.messageQueue.first)
+                        } catch (e: TelegramApiException) {
+                            println("${Common.messageQueue.first.text} ${e.message}")
+                            e.printStackTrace()
+                        }
                         Common.messageQueue.removeFirst()
                         Thread.sleep((1000 / 30.0).toLong())
                     }
-                } catch (e: TelegramApiException) {
+                } catch (e: Exception) {
                     println(e.message)
                     e.printStackTrace()
                 }
             }
         }
         setDefaultKeyBoard()
+//        db = Database(LoadType.CREATE.data)
         db = Database()
+        println("Started")
+        println(db.timetable.getTimetable(Type.CLASS.data, db.getClassInd("11е")))
     }
 
     override fun getBotUsername(): String = if (BotConfig.isDebug) BotConfig.TestUsername else BotConfig.ReleaseUsername
+
     override fun getBotToken(): String = if (BotConfig.isDebug) BotConfig.TestingToken else BotConfig.ReleaseToken
+
     override fun onUpdateReceived(update: Update?) {
         if (update == null)
             return
@@ -204,6 +222,7 @@ class Main : TelegramLongPollingBot() {
                     text = "OK"
                 }
             }
+
             cmd.startsWith("c_", ignoreCase = true) || cmd.startsWith("t_", ignoreCase = true) ||
                     cmd.startsWith("r_", ignoreCase = true) -> {
                 val txt = StringBuilder()
@@ -229,30 +248,269 @@ class Main : TelegramLongPollingBot() {
                 }
                 text = txt.toString()
             }
-            db.getUser(message.from.id.toLong())!!.settings.currentState == arrayListOf(7, 3, -1, -1, -1, -1, -1, -1)
-            -> {
+            db.getUser(message.from.id.toLong())!!.settings.currentState == arrayListOf(7, 3, -1, -1, -1, -1, -1, -1) -> {
                 db.addFeedback(message.from.id.toLong(), message.text)
                 text = "Спасибо за отзыв! В скором времени ты получишь ответ от моего создателя"
             }
-            else -> text = "Прости, но я тебя не понимаю"
+            else -> text = "Моя твоя не понимать (/menu)"
         }
-        Common.sendMessage(text, message.chatId, keyboard)
+        if (text.isNotEmpty())
+            Common.sendMessage(text, message.chatId, keyboard)
+    }
 
-        TODO("not implemented")
-    }
     private fun onCallbackQuery(callbackQuery: CallbackQuery) {
-        TODO("not implemented")
+        try {
+            var text: String
+            var keyboard: InlineKeyboardMarkup? = Common.defaultKeyboard
+            val data = ArrayList<Int>()
+            callbackQuery.data.split('.').forEach { data.add(it.toInt()) }
+            db.setUserState(callbackQuery.from.id.toLong(), data)
+            val userId = callbackQuery.from.id.toLong()
+            var markdown = false
+            when (data[0]) {
+                1 -> {
+                    val txt = StringBuilder("Выбери ")
+                    when (data[1]) {
+                        Type.CLASS.data -> {
+                            txt.append("класс:\n")
+                            for (it in 0 until db.timetable.classCount)
+                                txt.append("/c_").append(it + 1).append(" : ").append(db.timetable.classNames[it])
+                                        .append('\n')
+                        }
+                        Type.TEACHER.data -> {
+                            txt.append("учителя:\n")
+                            for (it in 0 until db.timetable.teacherNames.size)
+                                txt.append("/t_").append(it + 1).append(" : ").append(db.timetable.teacherNames[it])
+                                        .append('\n')
+                        }
+                        Type.ROOM.data -> {
+                            txt.append("кабинет:\n")
+                            for (it in 0 until db.timetable.roomsCount)
+                                txt.append("/r_").append(it + 1).append(" : ").append(db.timetable.roomNames[it])
+                                        .append('\n')
+                        }
+                        else -> txt.append("Такого у меня нет")
+                    }
+                    db.setUserState(callbackQuery.from.id.toLong(), arrayListOf(data[2], data[3], -1, -1, -1, -1, -1, -1))
+                    keyboard = InlineKeyboardMarkup().setKeyboard(listOf(listOf(
+                            InlineKeyboardButton("Класс").setCallbackData("1." + Type.CLASS.data.toString() + '.' +
+                                    data[2].toString() + '.' + data[3].toString() + ".-1.-1.-1.-1"),
+                            InlineKeyboardButton("Учитель").setCallbackData("1." + Type.TEACHER.data.toString() +
+                                    '.' + data[2].toString() + '.' + data[3].toString() + ".-1.-1.-1.-1"),
+                            InlineKeyboardButton("Кабинет").setCallbackData("1." + Type.ROOM.data.toString() + '.' +
+                                    data[2].toString() + '.' + data[3].toString() + ".-1.-1.-1.-1")
+                    )))
+                    text = txt.toString()
+                }
+                2 -> text = if (data[1] == 1) "Расписание звонков:\n" + Constants.bells else "Чем могу помочь?"
+                3 -> {
+                    val userSettings = db.getUser(userId)?.settings
+                    var type = data[4]
+                    var typeInd = data[5]
+                    var dayInd = data[6]
+                    if (dayInd == -1)
+                        dayInd = 7
+                    if (typeInd == -1)
+                        typeInd = userSettings?.typeInd ?: 0
+                    if (type == -1)
+                        type = userSettings?.type ?: Type.CLASS.data
+                    var presentation = data[1]
+                    if (presentation == 0)
+                        presentation = userSettings?.defaultPresentation ?: Presentation.ALL_WEEK.data
+                    text = db.timetable.getTimetablePres(presentation, type, typeInd, dayInd)
+                    markdown = true
+                    val ending = arrayOf(type, typeInd, dayInd, data[1])
+                    val altEnding = arrayOf(-1, -1) + ending
+                    keyboard = InlineKeyboardMarkup().setKeyboard(listOf(
+                            listOf(InlineKeyboardButton("Сегодня").setCallbackData(arrayToString(arrayOf(
+                                    3, Presentation.TODAY.data) + altEnding)),
+                                    InlineKeyboardButton("Сейчас").setCallbackData(arrayToString(arrayOf(
+                                            3, Presentation.NEAR.data) + altEnding)),
+                                    InlineKeyboardButton("Завтра").setCallbackData(arrayToString(arrayOf(
+                                            3, Presentation.TOMORROW.data) + altEnding))),
+                            listOf(InlineKeyboardButton("На неделю").setCallbackData(arrayToString(arrayOf(
+                                    3, Presentation.ALL_WEEK.data) + altEnding)),
+                                    InlineKeyboardButton("Конкретный день").setCallbackData(arrayToString(arrayOf(
+                                            8, 0, 3, 7) + ending)),
+                                    InlineKeyboardButton("Поменять").setCallbackData(arrayToString(arrayOf(
+                                            1, 0, 3, data[1]) + ending))),
+                            listOf(InlineKeyboardButton("Сброс").setCallbackData(arrayToString(arrayOf(3, 0))),
+                                    InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
+                }
+                4 -> {
+                    val userSettings = db.getUser(userId)?.settings
+                    var presentation = data[1]
+                    if (presentation == 0)
+                        presentation = userSettings?.defaultPresentationChanges ?: Presentation.ALL_CLASSES.data
+                    text = if (presentation == Presentation.OTHER.data && data[5] != -1)
+                        db.timetable.changes.getChanges(db.timetable, data[5])
+                    else
+                        db.timetable.changes.getChangesPres(presentation, db.timetable, userSettings?.typeInd ?: 0)
+                    var layer = listOf(
+                            InlineKeyboardButton("Все классы").setCallbackData(arrayToString(arrayOf(
+                                    4, Presentation.ALL_CLASSES.data, -1, -1, -1, -1, -1, Presentation.ALL_CLASSES.data))),
+                            InlineKeyboardButton("Определённый класс").setCallbackData(arrayToString(arrayOf(
+                                    9, 0, 4, Presentation.OTHER.data, -1, -1, -1, Presentation.OTHER.data))),
+                            InlineKeyboardButton("\"Мой\" класс").setCallbackData(arrayToString(arrayOf(
+                                    4, Presentation.CURRENT_CLASS.data, -1, -1, -1, -1, -1, Presentation.CURRENT_CLASS.data))))
+                    if (userSettings?.type == Type.CLASS.data)
+                        layer = layer.dropLast(1)
+                    keyboard = InlineKeyboardMarkup().setKeyboard(listOf(layer,
+                            listOf(InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
+                }
+                5 -> {
+                    val userSettings = db.getUser(userId)?.settings
+                    var presentation = data[1]
+                    if (presentation == 0)
+                        presentation = userSettings?.defaultPresentationRooms ?: Presentation.ALL_WEEK.data
+                    var dayInd = data[6]
+                    if (dayInd == -1)
+                        dayInd = 7
+                    text = db.timetable.freeRooms.getFreeRoomsPresentation(presentation, db.timetable, dayInd)
+                    markdown = true
+                    keyboard = InlineKeyboardMarkup().setKeyboard(listOf(
+                            listOf(InlineKeyboardButton("Сегодня").setCallbackData(arrayToString(arrayOf(
+                                    5, Presentation.TODAY.data))),
+                                    InlineKeyboardButton("Сейчас").setCallbackData(arrayToString(arrayOf(
+                                            5, Presentation.NEAR.data))),
+                                    InlineKeyboardButton("Завтра").setCallbackData(arrayToString(arrayOf(
+                                            5, Presentation.TOMORROW.data)))),
+                            listOf(InlineKeyboardButton("На неделю").setCallbackData(arrayToString(arrayOf(
+                                    5, Presentation.ALL_WEEK.data))),
+                                    InlineKeyboardButton("Конкретный день").setCallbackData(arrayToString(arrayOf(
+                                            8, 0, 5, Presentation.OTHER.data)))),
+                            listOf(InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
+                }
+                6 -> {
+                    val userSettings = db.getUser(userId)?.settings
+                    if (userSettings == null)
+                        text = "Хмм... Я тебя не могу узнать. Нажми /start, дабы я смог вспомнить тебя"
+                    else {
+                        if (data[4] != -1 && data[5] != -1)
+                            userSettings.type = data[4]
+                        userSettings.typeInd = data[5]
+                        text = userSettings.toString(db)
+                        keyboard = getSettingsKeyboard()
+                        when (data[1]) {
+                            0, 1 -> {
+                                if (data[1] == 1)
+                                    userSettings.notify = !userSettings.notify
+                            }
+                            2 -> if (data[7] != -1)
+                                userSettings.defaultPresentation = data[7]
+                            else {
+                                text = "Выбирай!"
+                                keyboard = InlineKeyboardMarkup().setKeyboard(listOf(
+                                        listOf(InlineKeyboardButton("Вся неделя").setCallbackData(arrayToString(arrayOf(
+                                                6, 2, -1, -1, -1, -1, -1, Presentation.ALL_WEEK.data))),
+                                                InlineKeyboardButton("Текущий день").setCallbackData(arrayToString(arrayOf(
+                                                        6, 2, -1, -1, -1, -1, -1, Presentation.TODAY.data))),
+                                                InlineKeyboardButton("Следующий день").setCallbackData(arrayToString(arrayOf(
+                                                        6, 2, -1, -1, -1, -1, -1, Presentation.TOMORROW.data)))),
+                                        listOf(InlineKeyboardButton("Ближайший урок").setCallbackData(arrayToString(arrayOf(
+                                                6, 2, -1, -1, -1, -1, -1, Presentation.NEAR.data)))),
+                                        listOf(InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
+                            }
+                            3 -> if (data[7] != -1)
+                                userSettings.defaultPresentationChanges = data[7]
+                            else {
+                                text = "Выбирай!"
+                                var layer = listOf(InlineKeyboardButton("Все классы").setCallbackData(arrayToString(arrayOf(
+                                        6, 3, -1, -1, -1, -1, -1, Presentation.ALL_CLASSES.data))),
+                                        InlineKeyboardButton("\"Мой\" класс").setCallbackData(arrayToString(arrayOf(
+                                                6, 3, -1, -1, -1, -1, -1, Presentation.CURRENT_CLASS.data))))
+                                if (userSettings.type != Type.CLASS.data)
+                                    layer = layer.dropLast(1)
+                                keyboard = InlineKeyboardMarkup().setKeyboard(listOf(
+                                        layer,
+                                        listOf(InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
+                            }
+                            4 -> if (data[7] != -1)
+                                userSettings.defaultPresentationRooms = data[7]
+                            else {
+                                text = "Выбирай!"
+                                keyboard = InlineKeyboardMarkup().setKeyboard(listOf(
+                                        listOf(InlineKeyboardButton("Вся неделя").setCallbackData(arrayToString(arrayOf(
+                                                6, 4, -1, -1, -1, -1, -1, Presentation.ALL_WEEK.data))),
+                                                InlineKeyboardButton("Текущий день").setCallbackData(arrayToString(arrayOf(
+                                                        6, 4, -1, -1, -1, -1, -1, Presentation.TODAY.data))),
+                                                InlineKeyboardButton("Следующий день").setCallbackData(arrayToString(arrayOf(
+                                                        6, 4, -1, -1, -1, -1, -1, Presentation.TOMORROW.data)))),
+                                        listOf(InlineKeyboardButton("Ближайший урок").setCallbackData(arrayToString(arrayOf(
+                                                6, 4, -1, -1, -1, -1, -1, Presentation.NEAR.data)))),
+                                        listOf(InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
+                            }
+                        }
+                        db.getUser(userId)!!.settings = userSettings
+                    }
+                }
+                7 -> {
+                    keyboard = InlineKeyboardMarkup().setKeyboard(listOf(
+                            listOf(InlineKeyboardButton("Информация о боте").setCallbackData(arrayToString(arrayOf(
+                                    7, 1))),
+                                    InlineKeyboardButton("Помощь").setCallbackData(arrayToString(arrayOf(
+                                            7, 2))),
+                                    InlineKeyboardButton("Обратная связь").setCallbackData(arrayToString(arrayOf(
+                                            7, 3)))),
+                            listOf(InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
+                    text = when (data[1]) {
+                        0 -> "Da-da?"
+                        1 -> "Этот бот просто берет расписание с сайта lyceum.urfu.ru и показывает его в другой, " +
+                                "более удобной (надеюсь) форме\nTODO: Сделать нормальное расписание"
+                        2 -> BotConfig.helpMes
+                        3 -> "Хочешь сказать что-нибудь о боте? Или просто пообщаться со мной? Напиши что-нибудь"
+                        else -> "Эта кнопка не совсем рабочая, но все равно: Da-da?"
+                    }
+                }
+                8 -> {
+                    text = "Choose your day!"
+                    val d = (data.subList(2, 4) + listOf(-1, -1) + data.subList(4, 6)).toTypedArray()
+                    keyboard = InlineKeyboardMarkup().setKeyboard(listOf(
+                            listOf(InlineKeyboardButton("Пн").setCallbackData(arrayToString(d + arrayOf(
+                                    0, data[7]))),
+                                    InlineKeyboardButton("Вт").setCallbackData(arrayToString(d + arrayOf(
+                                            1, data[7]))),
+                                    InlineKeyboardButton("Ср").setCallbackData(arrayToString(d + arrayOf(
+                                            2, data[7])))),
+                            listOf(InlineKeyboardButton("Чт").setCallbackData(arrayToString(d + arrayOf(
+                                    3, data[7]))),
+                                    InlineKeyboardButton("Пт").setCallbackData(arrayToString(d + arrayOf(
+                                            4, data[7]))),
+                                    InlineKeyboardButton("Сб").setCallbackData(arrayToString(d + arrayOf(
+                                            5, data[7])))),
+                            listOf(InlineKeyboardButton("Вся неделя").setCallbackData(arrayToString(d + arrayOf(
+                                    7, data[7])))),
+                            listOf(InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
+                }
+                9 -> {
+                    keyboard = InlineKeyboardMarkup().setKeyboard(listOf(
+                            listOf(InlineKeyboardButton("Обратно").setCallbackData(arrayToString(data.subList(2, 4).toTypedArray())))))
+                    val sb = StringBuilder()
+                    db.timetable.classNames.forEachIndexed { index, s -> sb.append("/c_").append(index + 1).append(" : ").append(s).append('\n') }
+                    text = sb.dropLast(1).toString()
+                    db.setUserState(userId, ArrayList(data.subList(2, 4) + listOf(-1, -1, -1, -1, -1, -1)))
+                }
+                else -> text = "Ты действительно думаешь, что это была валидная кнопка?"
+            }
+            Common.editMessage(text, callbackQuery.message.chatId, inlineKeyboard = keyboard,
+                    messageId = callbackQuery.message.messageId, markdown = markdown)
+        } catch (e: Exception) {
+            println(e.message)
+            e.printStackTrace()
+            Common.sendMessage("Что-то пошло не так, и оно упало", callbackQuery.from.id.toLong(), inlineKeyboard = null)
+            Common.sendMessage("Я упаль(\n${e.message}", inlineKeyboard = null, emergency = true)
+        }
     }
+
     private fun sendMessage(mes: MessageToSend) {
         if (mes.text.isEmpty())
             return
         when {
             mes.text.length > 4094 -> {
-                val msg = mes
                 while (mes.text.length > 4094) {
                     val li = findLastSep(mes.text)
-                    msg.text = mes.text.substring(0, li)
-                    sendMessage(msg)
+                    mes.text = mes.text.substring(0, li)
+                    sendMessage(mes)
                     mes.text = mes.text.substring(li)
                 }
                 sendMessage(mes)
@@ -263,14 +521,23 @@ class Main : TelegramLongPollingBot() {
                         .setReplyMarkup(mes.inlineKeyboard)
                 if (mes.silent)
                     msg.disableNotification()
-                sendMessage(msg)
+                sendApiMethod(msg)
+//                sendMessage(msg)
             }
             else -> {
                 val msg = EditMessageText().setChatId(mes.chatId).enableMarkdown(mes.markdown).setText(mes.text)
                         .setMessageId(mes.messageId).setReplyMarkup(mes.inlineKeyboard)
-                editMessageText(msg)
+//                editMessageText(msg)
+                sendApiMethod(msg)
             }
         }
+    }
+
+    private fun arrayToString(array: Array<Int>): String {
+        val nArr = Array(8) { if (array.size > it) array[it] else -1 }
+        val sb = StringBuilder()
+        nArr.forEach { sb.append(it).append('.') }
+        return sb.dropLast(1).toString()
     }
 
     private fun setDefaultKeyBoard() {
@@ -282,13 +549,17 @@ class Main : TelegramLongPollingBot() {
                 InlineKeyboardButton("Прочее").setCallbackData("7.0.-1.-1.-1.-1.-1.-1"))
         Common.defaultKeyboard = InlineKeyboardMarkup().setKeyboard(listOf(row1, row2))
     }
+
     private fun extractCmd(command: String): String {
         val spaceInd = command.indexOf(' ')
-        return command.substring(if (command[0] == '/') 1 else 0, if (spaceInd == -1) spaceInd else command.length)
+        return command.substring(if (command[0] == '/') 1 else 0, if (spaceInd != -1) spaceInd else command.length)
     }
+
     private fun compareCommand(cmd: String, pattern: String): Boolean =
             cmd.equals(pattern, ignoreCase = true) || cmd.equals(pattern + botUsername, ignoreCase = true)
+
     private fun isAdmin(userId: Long): Boolean = userId == Constants.fatherInd
+
     private fun findLastSep(text: String): Int {
         val str = text.substring(0, 4094)
         var endPos = str.lastIndexOf('\n')
@@ -296,56 +567,22 @@ class Main : TelegramLongPollingBot() {
         endPos = if (endPos < 3800) 4094 else endPos
         return endPos
     }
+
     private fun onUserMes(message: Message) {
         db.updateUserInfo(message.from.id.toLong(), message.from.userName, message.from.firstName, message.date)
         println("Message!")
     }
 
+    private fun getSettingsKeyboard(): InlineKeyboardMarkup = InlineKeyboardMarkup().setKeyboard(listOf(
+                listOf(InlineKeyboardButton("Оповещения вкл/выкл").setCallbackData(arrayToString(arrayOf(
+                        6, 1))),
+                        InlineKeyboardButton("Изменить себя").setCallbackData(arrayToString(arrayOf(
+                                1, 0, 6, 0))),
+                        InlineKeyboardButton("Расписание по умолчанию").setCallbackData(arrayToString(arrayOf(
+                                6, 2)))),
+                listOf(InlineKeyboardButton("Изменения по умолчанию").setCallbackData(arrayToString(arrayOf(
+                        6, 3))),
+                        InlineKeyboardButton("Свободные кабинеты по умолчанию").setCallbackData(arrayToString(arrayOf(
+                                6, 4)))),
+                listOf(InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
 }
-/*
-        @self.bot.message_handler(content_types=['text'], func=lambda message: message.text[0] == '/')
-        def _reply(message):
-            self.on_user_message(message.from_user.id, message)
-            try:
-                Message_handler.message(message, self.db)
-            except BaseException as e:
-                self.bot.send_message(message.chat.id, "Что-то полшо не так")
-                self.write_error(e, message)
-
-        @self.bot.message_handler()
-        def _reply_default(message):
-            self.on_user_message(message.from_user.id, message)
-            try:
-                Message_handler.message(message, self.db)
-            except BaseException as e:
-                self.bot.send_message(message.chat.id, "Что-то пошло не так")
-                self.write_error(e, message)
-
-        @self.bot.callback_query_handler(func=lambda call: True)
-        def test_callback(call):
-            common.logger.info(call)
-            try:
-                Message_handler.callback(user_id=call.from_user.id, data=self.extract_data_from_text(call.data),
-                                         mes_id=call.message.message_id, db=self.db)
-            except BaseException as e:
-                self.write_error(e)
-                self.bot.send_message(call.from_user.id, "Чак Норрис, перелогинься. Ты заставляешь падать ̶м̶о̶и̶ "
-                                                         "̶л̶у̶ч̶ш̶и̶е̶ ̶к̶о̶с̶т̶ы̶л̶и̶ мой почти идеальный код")
-
-
-    def write_error(self, err, mess=None):
-        self.send_to_father("An exception occupied!")
-        logging.error(err, exc_info=True)
-        common.logger.error(err)
-        print(str(err), err.args, err.__traceback__)
-        f = open("data/Error-bot-" + datetime.datetime.today().strftime("%y%m%d-%Hh") + '.log', 'a')
-        text = 'unknown message' if mess is None else (str(mess.text) + '\n' + str(mess.chat.id) + ':' +
-                                                       str(mess.from_user.username))
-        f.write(datetime.datetime.today().strftime("%M:%S-%f") + str(err) + ' ' + str(err.args) + '\n' + text + '\n\n')
-        f.close()
-
-    @staticmethod
-    def extract_data_from_text(text):
-        return [int(s) for s in text.split('.')]
-
- */

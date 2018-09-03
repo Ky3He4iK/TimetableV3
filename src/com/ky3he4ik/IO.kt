@@ -10,17 +10,24 @@ import com.google.gson.reflect.TypeToken
 
 internal object IO {
     private fun write(filename: String, text: String, overwrite: Boolean = true) {
+        val directories = filename.split(File.separator)
+        directories.dropLast(1).forEach { val file = File(it)
+            if (!file.exists())
+                file.mkdir()
+        }
+
         val file = File(filename)
         if (!file.exists())
-            while (file.createNewFile());
+            file.createNewFile()
         if (!file.canWrite())
             throw AccessDeniedException(file)
-        if (!overwrite)
-            file.writeText(read(filename))
-        file.writeText(text)
+        val writer = OutputStreamWriter(FileOutputStream(file, !overwrite)).buffered()
+        writer.write(text)
+        writer.flush()
+        writer.close()
     }
 
-    private fun read(filename: String) : String{
+    private fun read(filename: String) : String {
         val file = File(filename)
         if (!file.exists())
             throw FileNotFoundException("$filename does not exists")
@@ -30,7 +37,7 @@ internal object IO {
     }
 
     fun <T> readJSON(filename: String) : T {
-        return Gson().fromJson<T>(read(filename), object : TypeToken<List<T>>() {}.type)
+        return Gson().fromJson<T>(read(filename), object : TypeToken<T>() {}.type)
     }
 
     fun <T> writeJSON(filename: String, t: T, overwrite: Boolean = true) {
@@ -39,11 +46,10 @@ internal object IO {
 
     fun get(url: URL, fast: Boolean = false) : String {
         with(url.openConnection() as HttpURLConnection) {
-            setRequestProperty("User-agent", "Timetable bot")
+            setRequestProperty("User-agent", "Bot")
+            //Mozilla/5.0 (X11; Fedora; Linux x86_64; rv:61.0) Gecko/20100101 Firefox/61.0
             // optional default is GET
             requestMethod = "GET"
-
-
             BufferedReader(InputStreamReader(inputStream, "windows-1251")).use {
                 if (responseCode != 200)
                     throw IOException("Response code is $responseCode ($responseMessage), not 200 on URL $url")
@@ -54,7 +60,7 @@ internal object IO {
                     response.append(inputLine)
                     inputLine = it.readLine()
                 }
-                Thread.sleep(if (fast) 10 else 1000)
+                Thread.sleep(if (fast) 100 else 1000) //TODO: reduce
                 return response.toString()
             }
         }
@@ -66,4 +72,6 @@ internal object IO {
             parametersString.append(it.key).append('=').append(it.value).append("&")
         return get(URL(url.toString() + '?' + parametersString.substring(0, parametersString.length - 1)), fast)
     }
+
+    fun exists(filename: String): Boolean = File(filename).exists()
 }

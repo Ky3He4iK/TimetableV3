@@ -30,8 +30,8 @@ object TimetableBuilder {
         answer[Constants.RoomsListName] = getListsSub(tmpStr)
         answer[Constants.DaysListName] = getListsSub(array[6], true)
 
-        println(token)
-        println(answer.toString())
+//        println(token)
+//        println(answer.toString())
         return answer
     }
 
@@ -41,7 +41,7 @@ object TimetableBuilder {
         for (it in arr) {
             val tmp = it.substring(it.indexOf("value='") + "value='".length)
             val tmpI = tmp.substring(0, tmp.indexOf("'"))
-            answer.add(ListObject(tmpI, it.substring(it.lastIndexOf(">"))))
+            answer.add(ListObject(tmpI, it.substring(it.lastIndexOf(">") + 1)))
         }
         if (sortByInd)
             answer.sortBy { it.index }
@@ -123,7 +123,7 @@ object TimetableBuilder {
                 "tmrDay" to "0"
         ), fast)
         if (page == "Err\n")
-            print("Something bad was happened with $teacherInd (${timetable.teacherNames[teacherInd]})")
+            println("Something bad was happened with $teacherInd (${timetable.teacherNames[teacherInd]})")
         else if (page.contains("Уроков не найдено"))
             return
         for (dayInfo in page.substring(page.indexOf("<h3>") + "<h3>".length, page.indexOf("<details><summary>")).split("<h3>"))
@@ -141,7 +141,7 @@ object TimetableBuilder {
         val grInfo = lessonData[lessonData.lastIndexOf("</td>") - 1]
         if (grInfo == ';')
             return
-        val groupNum = if (grInfo.isDigit()) grInfo.toInt() else 0
+        val groupNum =  if (grInfo.isDigit()) grInfo.toInt() - '0'.toInt() else 0
         val lesData = lessonData.substring(0, lessonData.lastIndexOf("</td>") - "</td>".length)
         if (!lesData.contains("<td>"))
             return
@@ -224,13 +224,25 @@ object TimetableBuilder {
             to.add(obj.name)
     }
 
+    private fun sortGroups(timetable: Timetable) {
+        timetable.timetable.days.forEach { d ->
+            d.lessons.forEach { l ->
+                l.classes.forEach { c ->
+                    c.groups.sortBy {
+                        it.groupInd
+                    }
+                }
+            }
+        }
+    }
+
     fun createTimetable(fast: Boolean = BotConfig.isDebug): Timetable {
         this.fast = fast
         getToken()
         lists = getLists()
-        defaults = arrayListOf(findInd(lists[Constants.TeachersListName]!!, "S"),
-                findInd(lists[Constants.TeachersListName]!!, "F"),
-                findInd(lists[Constants.TeachersListName]!!, "T"),
+        defaults = arrayListOf(findInd(lists[Constants.RoomsListName]!!, "S"),
+                findInd(lists[Constants.RoomsListName]!!, "F"),
+                findInd(lists[Constants.RoomsListName]!!, "T"),
                 findName(lists[Constants.TeachersListName]!!, "Сотрудник И. С."))
 
         val timetable = Timetable(6, 7, lists[Constants.ClassesListName]!!.size,
@@ -243,6 +255,7 @@ object TimetableBuilder {
             timetable.roomInd.add(obj.name)
 
         setClasses(timetable)
+        sortGroups(timetable)
         setTeachers(timetable)
         timetable.freeRooms.setAll(timetable)
         timetable.changes = getChanges(timetable, fast)
