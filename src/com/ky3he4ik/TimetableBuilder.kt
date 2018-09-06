@@ -92,7 +92,7 @@ object TimetableBuilder {
         }
     }
 
-    private fun setClassLessonGroup(lessonData: String, groupInd: Int, classInd: Int): Timetable.Timetable.TimetableDay.TimetableLesson.TimetableClass.TimetableCell {
+    private fun setClassLessonGroup(lessonData: String, groupInd: Int, classInd: Int): Timetable.TT.TimetableDay.TimetableLesson.TimetableClass.TimetableCell {
         val subject: String
         var roomInd: Int
         if (lessonData.contains(' ')) {
@@ -105,7 +105,7 @@ object TimetableBuilder {
             roomInd = if (lessonData == "Физкультура") defaults[0] else defaults[1]
             subject = lessonData
         }
-        return Timetable.Timetable.TimetableDay.TimetableLesson.TimetableClass.TimetableCell(classInd, roomInd, defaults[3], arrayListOf(subject), groupInd)
+        return Timetable.TT.TimetableDay.TimetableLesson.TimetableClass.TimetableCell(classInd, roomInd, defaults[3], arrayListOf(subject), groupInd)
     }
 
     private fun setTeachers(timetable: Timetable) {
@@ -245,8 +245,8 @@ object TimetableBuilder {
                 findInd(lists[Constants.RoomsListName]!!, "T"),
                 findName(lists[Constants.TeachersListName]!!, "Сотрудник И. С."))
 
-        val timetable = Timetable(6, 7, lists[Constants.ClassesListName]!!.size,
-                lists[Constants.TeachersListName]!!.size, defaults[2])
+        val timetable = Timetable(6, 7, classCount = lists[Constants.ClassesListName]!!.size,
+                roomsCount = lists[Constants.RoomsListName]!!.size, trap = defaults[2])
         copyList(lists[Constants.ClassesListName]!!, timetable.classNames)
         copyList(lists[Constants.TeachersListName]!!, timetable.teacherNames)
         copyList(lists[Constants.DaysListName]!!, timetable.dayNames)

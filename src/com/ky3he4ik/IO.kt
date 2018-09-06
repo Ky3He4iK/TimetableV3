@@ -1,5 +1,6 @@
 package com.ky3he4ik
 
+import com.beust.klaxon.Klaxon
 import java.io.*
 import java.net.HttpURLConnection
 import java.net.URL
@@ -36,8 +37,16 @@ internal object IO {
         return file.readText()
     }
 
-    fun <T> readJSON(filename: String) : T {
-        return Gson().fromJson<T>(read(filename), object : TypeToken<T>() {}.type)
+    inline fun <reified E> readJSONArray(filename: String): ArrayList<E>? {
+        return ArrayList(Klaxon().parseArray<E>(read(filename)))
+    }
+
+    inline fun <reified T> readJSON2(filename: String): T? {
+        return Klaxon().parse<T>(read(filename))
+    }
+
+    fun <T> writeJSON2(filename: String, t: T, overwrite: Boolean = true) {
+        write(filename, Klaxon().toJsonString(t as Any), overwrite)
     }
 
     fun <T> writeJSON(filename: String, t: T, overwrite: Boolean = true) {

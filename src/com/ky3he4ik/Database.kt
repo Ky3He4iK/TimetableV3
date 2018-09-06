@@ -4,19 +4,19 @@ import org.telegram.telegrambots.api.objects.Message
 
 data class User(val id: Long, var username: String, var firstname: String, var internalId: Int, var lastAccess: Int = 0,
                 var settings: Settings = Settings()) {
-    data class Settings(var type: Int = Type.CLASS.data, var typeInd: Int = 10, var notify: Boolean = true,
-                        var currentState: ArrayList<Int> = ArrayList(),
+    data class Settings(var type: Int = Type.CLASS.data, var typeInd: Int = 17, var notify: Boolean = true,
+                        var currentState: List<Int> = listOf(2, 0, -1, -1, -1, -1, -1, -1),
                         var defaultPresentation: Int = Presentation.ALL_WEEK.data,
                         var defaultPresentationChanges: Int = Presentation.ALL_CLASSES.data,
                         var defaultPresentationRooms: Int = Presentation.ALL_WEEK.data) {
         fun toString(db: Database): String {
             return "Ты: ${when (type) {
                 Type.CLASS.data -> "ученик "
-                Type.TEACHER.data -> "преподавательб "
+                Type.TEACHER.data -> "преподаватель, "
                 Type.ROOM.data -> "кабинет №"
                 else -> "bug#"
-            }}${db.get(type, typeInd)}\n${if (notify) "П" else "Не п"}" +
-                    "олучаешь увебомления об изменениях\nВывлю по умолчанию:\n- Расписание: " +
+            }}${if (typeInd >= 0) db.get(type, typeInd) else typeInd.toString()}\n${if (notify) "П" else "Не п"}" +
+                    "олучаешь увебомления об изменениях\nВывод по умолчанию:\n- Расписание: " +
                     "${presentationToString(defaultPresentation)}\n- Изменения: " +
                     "${presentationToString(defaultPresentationChanges)}\n- Свободные кабинеты: " +
                     "${presentationToString(defaultPresentationRooms)}\nВыбирай, что хочешь изменить"
@@ -48,10 +48,10 @@ class Database(loadType: Int = LoadType.READ.data) {
     private val timetableFile = "data/timetable.bv3.json"
     private val feedbackFile = "data/feedback.bv3.json"
     private val usersFile = "data/users.bv3.json"
-    private val users: HashMap<Long, User>
 
-    var timetable: Timetable
-    val feedbackArray: ArrayList<Feedback>
+    private lateinit var users: HashMap<Long, User>
+    lateinit var timetable: Timetable
+    lateinit var feedbackArray: ArrayList<Feedback>
 
     init {
         var lT = loadType
@@ -59,23 +59,34 @@ class Database(loadType: Int = LoadType.READ.data) {
             lT = LoadType.CREATE.data
         when (lT) {
             LoadType.READ.data -> {
-                val tt = IO.readJSON<Timetable>(timetableFile)
-                timetable = tt
-                feedbackArray = IO.readJSON(feedbackFile)
-                users = IO.readJSON(usersFile)
-                println("Loaded from local files")
+                if (!load())
+                    create()
             }
             LoadType.CREATE.data -> {
-                users = HashMap()
-                feedbackArray = ArrayList()
-                timetable = TimetableBuilder.createTimetable()
-                writeAll()
+                create()
             }
             else -> throw RuntimeException("$loadType is not supported")
         }
     }
 
-    fun setUserState(userId: Long, newState: ArrayList<Int>) {
+    private fun load(): Boolean {
+//        timetable = IO.readJSON2(timetableFile) ?: return false //FIXME: fail on this line
+        timetable = TimetableBuilder.createTimetable()
+        feedbackArray = IO.readJSONArray(feedbackFile) ?: return false
+        users = IO.readJSON2(usersFile) ?: return false
+        println("Loaded from local files")
+        return true
+    }
+
+    private fun create() {
+        users = HashMap()
+        feedbackArray = ArrayList()
+        timetable = TimetableBuilder.createTimetable()
+        writeAll()
+        println("Created/fetched")
+    }
+
+    fun setUserState(userId: Long, newState: List<Int>) {
         users[userId]?.settings?.currentState = newState
     }
 
@@ -101,11 +112,6 @@ class Database(loadType: Int = LoadType.READ.data) {
                 "Что-то я таких не знаю"
             }
         }
-    }
-
-    fun update(fast: Boolean = false) {
-        timetable = TimetableBuilder.createTimetable(fast)
-        writeAll()
     }
 
     fun getInd(string: String, type: Int): Int = when (type) {
@@ -149,6 +155,9 @@ class Database(loadType: Int = LoadType.READ.data) {
         IO.writeJSON(timetableFile, timetable)
         IO.writeJSON(feedbackFile, feedbackArray)
         IO.writeJSON(usersFile, users)
+        IO.writeJSON2(timetableFile + "_", timetable)
+        IO.writeJSON2(feedbackFile + "_", feedbackArray)
+        IO.writeJSON2(usersFile + "_", users)
     }
 
     fun addFeedback(userId: Long, text: String) {
@@ -171,8 +180,34 @@ class Database(loadType: Int = LoadType.READ.data) {
         users.forEach { _, u -> Common.sendMessage(text, u.id, inlineKeyboard = null) }
     }
 
-    private fun notifyChanges(oldChanges: Timetable.Changes, newChanges: Timetable.Changes): Boolean {
-        TODO()
+    private fun <E> ArrayList<E>.notEquals(al: ArrayList<E>): Boolean {
+        if (al.size != size)
+            return false
+        forEachIndexed { index, e -> if (e != al[index]) return false }
+        return true
+    }
+
+    private fun notifyChanges(oldChanges: Timetable.Changes, newChanges: Timetable.Changes) {
+        if (newChanges.dayInd == -1 || newChanges.dayInd == 7)
+            return
+        var diffInd = HashSet<Int>().toMutableSet()
+        if (oldChanges.dayInd != newChanges.dayInd || oldChanges.dayInd !in 0..5)
+            diffInd = newChanges.changeIndexes.keys
+        else {
+            newChanges.changes.forEach {
+                if (!oldChanges.hasChanges[it.classInd] || oldChanges.changes[oldChanges.changeIndexes[it.classInd]!!].changeData.notEquals(it.changeData))
+                    diffInd.add(it.classInd)
+            }
+        }
+        if (diffInd.isEmpty())
+            return
+        users.filter { it.value.settings.notify && (it.value.settings.type != Type.CLASS.data ||
+                it.value.settings.typeInd in diffInd) }.keys.forEach {
+            val set = getUser(it)!!.settings
+            val classInd = if (set.type == Type.CLASS.data) set.typeInd else -1
+            Common.sendMessage(text = "${timetable.changes.getChangesPres(set.defaultPresentationChanges, timetable, classInd)}\n\n" +
+                    "Уведомления об изменениях можно отключить в настройках", silent = true, inlineKeyboard = null, chatId = it)
+        }
     }
 
     private fun findInArray(string: String, array: ArrayList<String>): Int {
