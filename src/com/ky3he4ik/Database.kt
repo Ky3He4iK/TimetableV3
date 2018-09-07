@@ -2,7 +2,7 @@ package com.ky3he4ik
 
 import org.telegram.telegrambots.api.objects.Message
 
-data class User(val id: Long, var username: String, var firstname: String, var internalId: Int, var lastAccess: Int = 0,
+data class User(val id: Long, var username: String, var firstName: String, var internalId: Int, var lastAccess: Int = 0,
                 var settings: Settings = Settings()) {
     data class Settings(var type: Int = Type.CLASS.data, var typeInd: Int = 17, var notify: Boolean = true,
                         var currentState: List<Int> = listOf(2, 0, -1, -1, -1, -1, -1, -1),
@@ -142,7 +142,7 @@ class Database(loadType: Int = LoadType.READ.data) {
         if (users.containsKey(userId)) {
             val user = getUser(userId)!!
             user.username = username
-            user.firstname = firstName
+            user.firstName = firstName
             user.lastAccess = lastAccess
             users[userId] = user
         } else
@@ -242,7 +242,7 @@ class Database(loadType: Int = LoadType.READ.data) {
 
     private fun getTeacherInd(teacher: String): Int = getSomethingInd(teacher, timetable.teacherNames)
 
-    private fun addUser(userId: Long, username: String, firstname: String, lastAccess: Int) {
-        users[userId] = User(userId, username, firstname, users.size, lastAccess)
+    private fun addUser(userId: Long, username: String, firstName: String, lastAccess: Int) {
+        users[userId] = User(userId, username, firstName, users.size, lastAccess)
     }
 }

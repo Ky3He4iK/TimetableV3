@@ -17,8 +17,6 @@ import kotlin.concurrent.thread
 
 fun main(args: Array<String>) {
     BotConfig.isDebug = true
-//    val timetable = TimetableBuilder.createTimetable(true)
-//    IO.writeJSON("timetable.json", timetable)
     thread(isDaemon = true, name = "Time thread") {
         while (true) {
             try {
@@ -30,12 +28,15 @@ fun main(args: Array<String>) {
                 }
                 if (day > 0)
                     day--
-                Common.currentLesson = getLesson(hour, LocalDateTime.now().minute)
+                Common.currentLesson = 7
+                for (it in 0 until Constants.lessonTimes.size)
+                    if (hour < Constants.lessonTimes[it][0] ||
+                            (hour == Constants.lessonTimes[it][0] && LocalDateTime.now().minute < Constants.lessonTimes[it][1]))
+                        Common.currentLesson =  it
                 Common.currentDay = day
                 println("$day $hour")
-                Thread.sleep(60 * 1000)
+                Thread.sleep(60 * 1000L)
             } catch (e: Exception) {
-                println(e.message)
                 e.printStackTrace()
             }
         }
@@ -43,56 +44,29 @@ fun main(args: Array<String>) {
     main(args.isNotEmpty())
 }
 
-//TODO: changes notify
-
-fun getLesson(hour: Int, minutes: Int): Int {
-    for (it in 0 until Constants.lessonTimes.size)
-        if (hour < Constants.lessonTimes[it][0] ||
-                (hour == Constants.lessonTimes[it][0] && minutes < Constants.lessonTimes[it][1]))
-            return it
-    return 7
-}
-
 fun main(debug: Boolean) {
     BotConfig.isDebug = debug
-/*    val logTag = "INIT"
-    BotLogger.setLevel(Level.ALL)
-    BotLogger.registerLogger(ConsoleHandler())
-    try {
-        BotLogger.registerLogger(BotsFileHandler())
-    } catch (e: IOException) {
-        BotLogger.severe(logTag, e)
-    }*/
-
     try {
         ApiContextInitializer.init()
         val telegramBotsApi = TelegramBotsApi()
         try {
             telegramBotsApi.registerBot(Main())
         } catch (e: TelegramApiException) {
-//            BotLogger.error(logTag, e)
             e.printStackTrace()
         }
     } catch (e: Exception) {
-//        BotLogger.error(logTag, e)
         e.printStackTrace()
     }
-//    while (Common.work)
-//        Thread.sleep(1000)
-    while (Common.work) {
-//        println("${Main.sthr.isAlive} ${Main.sthr.isInterrupted} ${Main.sthr.name}")
-        Thread.sleep(1000L * 5)
-    }
+    while (Common.work)
+        Thread.sleep(1000)
     Main.db.writeAll()
 }
 
 class Main : TelegramLongPollingBot() {
-    //private val LOGTAG = "MAIN"
-//    private val db: Database
     init {
         setDefaultKeyboard()
         db = Database()
-        sthr = thread(isDaemon = true, name = "Send thread") {
+        thread(isDaemon = true, name = "Send thread") {
             while (true) {
                 try {
                     if (Common.emergencyMessageQueue.isNotEmpty()) {
@@ -117,12 +91,10 @@ class Main : TelegramLongPollingBot() {
                     e.printStackTrace()
                 }
                 Thread.sleep(1)
-//                println("Send thread: I'm alive!")
             }
         }
         println("Started")
         println(db.timetable.getTimetable(Type.CLASS.data, db.getClassInd("11е")))
-//        println(db.timetable.getTimetable(Type.CLASS.data, db.getClassInd("11л"), 4))
     }
 
     override fun getBotUsername(): String = if (BotConfig.isDebug) BotConfig.TestUsername else BotConfig.ReleaseUsername
@@ -133,16 +105,22 @@ class Main : TelegramLongPollingBot() {
         try {
             if (update == null)
                 return
-            if (update.hasMessage()) {
+            if (update.hasMessage() && update.message.hasText())
                 onMessage(update.message)
-            } else if (update.hasCallbackQuery()) {
+            else if (update.hasCallbackQuery())
                 onCallbackQuery(update.callbackQuery)
-            }
         } catch (e: Exception) {
             e.printStackTrace()
             try {
-                Common.sendMessage(e.message ?: "Unknown eггoг", inlineKeyboard = null, emergency = true)
-            } catch (e: Exception) { /* On a server, nobody can hear you fail */}
+                Common.sendMessage(Common.exceptionToString(e), inlineKeyboard = null, emergency = true)
+                val text = "Shit happens. " + (e.message ?: "Unknown shit")
+                if (update?.message?.chatId != null)
+                    Common.sendMessage(text, chatId = update.message.chatId,
+                            inlineKeyboard = null, emergency = true)
+                if (update?.callbackQuery?.message?.chatId != null && update.callbackQuery?.message?.messageId != null)
+                    Common.editMessage(text, chatId = update.callbackQuery.message.chatId,
+                            messageId = update.callbackQuery.message.messageId, inlineKeyboard = null, emergency = true)
+            } catch (e: Exception) { /* On a server, nobody can hear you fail */ }
         }
         //TODO: add checking for stop and add/remove to group
     }
@@ -200,7 +178,7 @@ class Main : TelegramLongPollingBot() {
             compareCommand(cmd, "sudoGet") && isAdmin(message.chatId) -> {
                 val strBuilder = StringBuilder("feedback:\n")
                 db.feedbackArray.forEach { strBuilder.append("${it.internalId}. ${it.userId} " +
-                        "(@${db.getUser(it.userId)!!.username}; ${db.getUser(it.userId)!!.firstname})\n${it.text}\n\n")}
+                        "(@${db.getUser(it.userId)!!.username}; ${db.getUser(it.userId)!!.firstName})\n${it.text}\n\n")}
                 text = strBuilder.substring(0, strBuilder.length - 2)
                 keyboard = null
             }
@@ -515,6 +493,7 @@ class Main : TelegramLongPollingBot() {
         else if (text != messageTest)
             Common.editMessage(text, chatId, inlineKeyboard = keyboard, messageId = messageId, markdown = markdown)
     }
+
     private fun onCallbackQuery(callbackQuery: CallbackQuery) {
         try {
             val data = callbackQuery.data.split('.').map(String::toInt)
@@ -562,7 +541,7 @@ class Main : TelegramLongPollingBot() {
     }
 
     private fun arrayToString(array: Array<Int>): String {
-        val nArr = Array(8) { if (array.size > it) array[it] else -1 }
+        val nArr = Array(8) { if (it < array.size) array[it] else -1 }
         val sb = StringBuilder()
         nArr.forEach { sb.append(it).append('.') }
         return sb.dropLast(1).toString()
@@ -591,8 +570,10 @@ class Main : TelegramLongPollingBot() {
     private fun findLastSep(text: String): Int {
         val str = text.substring(0, 4094)
         var endPos = str.lastIndexOf('\n')
-        endPos = if (endPos == -1) str.lastIndexOf(' ') else endPos
-        endPos = if (endPos < 3800) 4094 else endPos
+        if (endPos == -1)
+            endPos = str.lastIndexOf(' ')
+        if (endPos < 3800)
+            endPos = 4094
         return endPos
     }
 
@@ -613,8 +594,8 @@ class Main : TelegramLongPollingBot() {
                         InlineKeyboardButton("Свободные кабинеты по умолчанию").setCallbackData(arrayToString(arrayOf(
                                 6, 4)))),
                 listOf(InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
+
     companion object {
         lateinit var db: Database
-        lateinit var sthr: Thread
     }
 }

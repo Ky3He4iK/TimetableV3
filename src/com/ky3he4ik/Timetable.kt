@@ -44,7 +44,7 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
                 }
         }
 
-        fun getFreeRooms(timetable: Timetable, dayInd: Int = 7, lessonInd: Int = -1): String {
+        private fun getFreeRooms(timetable: Timetable, dayInd: Int = 7, lessonInd: Int = -1): String {
             if (dayInd == 7) {
                 val sb = StringBuilder()
                 Array(6) { getFreeRooms(timetable, it) }.forEach { sb.append(it).append("\n\n") }
@@ -62,13 +62,13 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
             return sb.substring(0, sb.length - 2)
         }
 
-        fun getFreeRoomsToday(timetable: Timetable): String =
+        private fun getFreeRoomsToday(timetable: Timetable): String =
                 getFreeRooms(timetable, Common.currentDay % 6)
 
-        fun getFreeRoomsTomorrow(timetable: Timetable): String =
+        private fun getFreeRoomsTomorrow(timetable: Timetable): String =
                 getFreeRooms(timetable, if (Common.currentDay == 6) 0 else (Common.currentDay + 1) % 6)
 
-        fun getFreeRoomsNear(timetable: Timetable): String {
+        private fun getFreeRoomsNear(timetable: Timetable): String {
             val curDay: Int
             val curLes: Int
             when {
@@ -192,12 +192,12 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
         }
     }
 
-    fun getTimetableToday(type: Int, typeInd: Int): String = getTimetable(type, typeInd, Common.currentDay % 6)
+    private fun getTimetableToday(type: Int, typeInd: Int): String = getTimetable(type, typeInd, Common.currentDay % 6)
 
-    fun getTimetableTomorrow(type: Int, typeInd: Int): String =
+    private fun getTimetableTomorrow(type: Int, typeInd: Int): String =
             getTimetable(type, typeInd, if (Common.currentDay == 6) 0 else (Common.currentDay + 1) % 6)
 
-    fun getTimetableNear(type: Int, typeInd: Int): String {
+    private fun getTimetableNear(type: Int, typeInd: Int): String {
         val curDay: Int
         val curLes: Int
         when {
