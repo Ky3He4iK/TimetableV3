@@ -1,6 +1,5 @@
 package com.ky3he4ik
 
-import com.beust.klaxon.Klaxon
 import com.google.gson.Gson
 import java.io.*
 import java.net.HttpURLConnection
@@ -37,16 +36,12 @@ internal object IO {
         return file.readText()
     }
 
-    inline fun <reified E> readJSONArray(filename: String): ArrayList<E>? {
-        return ArrayList(Klaxon().parseArray<E>(read(filename)))
-    }
-
     fun <T> readJSON(filename: String) : T {
         return Gson().fromJson<T>(read(filename), object : TypeToken<T>() {}.type)
     }
 
-    inline fun <reified T> readJSON2(filename: String): T? {
-        return Klaxon().parse<T>(read(filename))
+    inline fun <reified T> readJSONArray(filename: String) : T {
+        return Gson().fromJson<T>(read(filename), object : TypeToken<T>() {}.type)
     }
     // Read by Klaxon, write by Gson. 2 Libraries for JSON isn't enough, need to add third :)
     fun <T> writeJSON(filename: String, t: T, overwrite: Boolean = true) {
@@ -64,7 +59,7 @@ internal object IO {
                     throw IOException("Response code is $responseCode ($responseMessage), not 200 on URL $url")
                 val response = StringBuffer()
                 var inputLine = it.readLine()
-                Charsets
+
                 while (inputLine != null) {
                     response.append(inputLine)
                     inputLine = it.readLine()

@@ -2,6 +2,7 @@ package com.ky3he4ik
 
 import com.google.gson.internal.LinkedTreeMap
 import org.telegram.telegrambots.api.objects.Message
+import kotlin.concurrent.thread
 
 data class User(val id: Long, var username: String, var firstName: String, var internalId: Int, var lastAccess: Int = 0,
                 var settings: Settings = Settings()) {
@@ -68,18 +69,25 @@ class Database(loadType: Int = LoadType.READ.data) {
             }
             else -> throw RuntimeException("$loadType is not supported")
         }
+        thread(isDaemon = true, name = "Updating thread") {
+            var counter = 0
+            while (Common.work) {
+                try {
+                    Thread.sleep(30 * 60 * 1000L) // daevery 30 min
+                    update(false, counter % 8 == 0)
+                    println("Updated")
+                    counter++
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
     }
 
     private fun load(): Boolean {
-// timetable = IO.readJSON2(timetableFile) ?: return false //FIXME: fail on this line
-//        val ltm = IO.readJSON<Timetable>(usersFile)
         timetable = TimetableBuilder.load(timetableFile) ?: TimetableBuilder.createTimetable()
-        feedbackArray = IO.readJSONArray(feedbackFile) ?: return false
-        users = IO.readJSON2(usersFile) ?: return false
-        if (users.isEmpty()) {
-            val ltm: LinkedTreeMap<Long, User> = IO.readJSON(usersFile)
-            users = HashMap(ltm.toMap())
-        }
+        feedbackArray = IO.readJSONArray(feedbackFile)
+        users = HashMap(IO.readJSON<LinkedTreeMap<Long, User>>(usersFile).toMap())
         println("Loaded from local files")
         return true
     }
@@ -177,6 +185,7 @@ class Database(loadType: Int = LoadType.READ.data) {
             timetable = TimetableBuilder.createTimetable(fast)
         else
             timetable.changes = TimetableBuilder.getChanges(timetable, fast)
+        writeAll()
         notifyChanges(oldChanges, timetable.changes)
     }
 
