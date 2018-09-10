@@ -20,7 +20,7 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
         }
     }
 
-    data class FreeRooms(val daysCount: Int, val lessonsCount: Int, val roomsCount: Int) {
+    class FreeRooms(daysCount: Int, lessonsCount: Int) {
         private val days = Array(daysCount) { FreeRoomsDay(lessonsCount) }
 
         class FreeRoomsDay(lessonsCount: Int) {
@@ -32,9 +32,9 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
         }
 
         fun setAll(timetable: Timetable) {
-            for (dayInd in 0 until daysCount)
-                for (lessonNum in 0 until lessonsCount) {
-                    val isBusy = Array(roomsCount) { false }
+            for (dayInd in 0 until timetable.daysCount)
+                for (lessonNum in 0 until timetable.lessonsCount) {
+                    val isBusy = Array(timetable.roomsCount) { false }
                     for (classCells in timetable.timetable.days[dayInd].lessons[lessonNum].classes)
                         for (group in classCells.groups)
                             isBusy[group.roomInd] = true
@@ -98,7 +98,7 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
         }
     }
 
-    data class Changes(val classCount: Int, var dayInd: Int = -1) {
+    class Changes(classCount: Int, var dayInd: Int = -1) {
         var hasChanges = Array(classCount) { false }
         val changes = ArrayList<ChangesClass>()
         val changeIndexes = HashMap<Int, Int>()
@@ -145,13 +145,13 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
         }
     }
 
-    val classNames = ArrayList<String>()
-    val teacherNames = ArrayList<String>()
-    val roomNames = ArrayList<String>()
-    val roomInd = ArrayList<String>()
-    val dayNames = ArrayList<String>()
+    var classNames = ArrayList<String>()
+    var teacherNames = ArrayList<String>()
+    var roomNames = ArrayList<String>()
+    var roomInd = ArrayList<String>()
+    var dayNames = ArrayList<String>()
     val timetable = TT(daysCount, lessonsCount, classCount)
-    val freeRooms = FreeRooms(daysCount, lessonsCount, roomsCount)
+    val freeRooms = FreeRooms(daysCount, lessonsCount)
     var changes = Changes(classCount)
 
     fun findDay(dayName: String): Int = find(dayNames, dayName)

@@ -1,11 +1,11 @@
 package com.ky3he4ik
 
 import com.beust.klaxon.Klaxon
+import com.google.gson.Gson
 import java.io.*
 import java.net.HttpURLConnection
 import java.net.URL
 
-import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 
@@ -28,7 +28,7 @@ internal object IO {
         writer.close()
     }
 
-    private fun read(filename: String) : String {
+    fun read(filename: String) : String {
         val file = File(filename)
         if (!file.exists())
             throw FileNotFoundException("$filename does not exists")
@@ -41,14 +41,14 @@ internal object IO {
         return ArrayList(Klaxon().parseArray<E>(read(filename)))
     }
 
+    fun <T> readJSON(filename: String) : T {
+        return Gson().fromJson<T>(read(filename), object : TypeToken<T>() {}.type)
+    }
+
     inline fun <reified T> readJSON2(filename: String): T? {
         return Klaxon().parse<T>(read(filename))
     }
-
-    fun <T> writeJSON2(filename: String, t: T, overwrite: Boolean = true) {
-        write(filename, Klaxon().toJsonString(t as Any), overwrite)
-    }
-
+    // Read by Klaxon, write by Gson. 2 Libraries for JSON isn't enough, need to add third :)
     fun <T> writeJSON(filename: String, t: T, overwrite: Boolean = true) {
         write(filename, GsonBuilder().setPrettyPrinting().create().toJson(t), overwrite)
     }

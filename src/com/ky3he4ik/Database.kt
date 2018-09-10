@@ -1,5 +1,6 @@
 package com.ky3he4ik
 
+import com.google.gson.internal.LinkedTreeMap
 import org.telegram.telegrambots.api.objects.Message
 
 data class User(val id: Long, var username: String, var firstName: String, var internalId: Int, var lastAccess: Int = 0,
@@ -70,10 +71,15 @@ class Database(loadType: Int = LoadType.READ.data) {
     }
 
     private fun load(): Boolean {
-//        timetable = IO.readJSON2(timetableFile) ?: return false //FIXME: fail on this line
-        timetable = TimetableBuilder.createTimetable()
+// timetable = IO.readJSON2(timetableFile) ?: return false //FIXME: fail on this line
+//        val ltm = IO.readJSON<Timetable>(usersFile)
+        timetable = TimetableBuilder.load(timetableFile) ?: TimetableBuilder.createTimetable()
         feedbackArray = IO.readJSONArray(feedbackFile) ?: return false
         users = IO.readJSON2(usersFile) ?: return false
+        if (users.isEmpty()) {
+            val ltm: LinkedTreeMap<Long, User> = IO.readJSON(usersFile)
+            users = HashMap(ltm.toMap())
+        }
         println("Loaded from local files")
         return true
     }
@@ -155,9 +161,9 @@ class Database(loadType: Int = LoadType.READ.data) {
         IO.writeJSON(timetableFile, timetable)
         IO.writeJSON(feedbackFile, feedbackArray)
         IO.writeJSON(usersFile, users)
-        IO.writeJSON2(timetableFile + "_", timetable)
-        IO.writeJSON2(feedbackFile + "_", feedbackArray)
-        IO.writeJSON2(usersFile + "_", users)
+//        IO.writeJSON2(timetableFile + "_", timetable)
+//        IO.writeJSON2(feedbackFile + "_", feedbackArray)
+//        IO.writeJSON2(usersFile + "_", users)
     }
 
     fun addFeedback(userId: Long, text: String) {

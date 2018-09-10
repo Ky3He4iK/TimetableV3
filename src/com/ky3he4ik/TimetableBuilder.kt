@@ -1,12 +1,16 @@
 package com.ky3he4ik
 
+import com.beust.klaxon.JsonObject
+import com.beust.klaxon.Klaxon
+import java.io.StringReader
+
 
 object TimetableBuilder {
+    /* Loading from site */
     private var fast = false
     private var token = ""
     private var lists = HashMap<String, ArrayList<ListObject>>()
     private var defaults = ArrayList<Int>(4)
-
 
     private data class ListObject(val index: String, val name: String)
 
@@ -46,7 +50,6 @@ object TimetableBuilder {
             answer.sortBy { it.name }
         return answer
     }
-
 
     private fun setClasses(timetable: Timetable) {
         for (it in 0 until lists[Constants.ClassesListName]!!.size)
@@ -233,7 +236,55 @@ object TimetableBuilder {
         }
     }
 
+    /* Loading from file */
+    fun load(filename: String): Timetable? {
+        try {
+            val jsonObject = Klaxon().parseJsonObject(StringReader(IO.read(filename)))
+            val timetable = Timetable(jsonObject.int("daysCount")!!, jsonObject.int("lessonsCount")!!,
+                    jsonObject.int("classCount")!!, jsonObject.int("roomsCount")!!, jsonObject.int("trap")!!)
+            timetable.classNames = ArrayList(jsonObject.array<String>("classNames")!!)
+            timetable.teacherNames = ArrayList(jsonObject.array<String>("teacherNames")!!)
+            timetable.roomNames = ArrayList(jsonObject.array<String>("roomNames")!!)
+            timetable.roomInd = ArrayList(jsonObject.array<String>("roomInd")!!)
+            timetable.dayNames = ArrayList(jsonObject.array<String>("dayNames")!!)
+
+            val ttObj = jsonObject.obj("timetable")!!
+            ttObj.array<JsonObject>("days")!!.forEachIndexed { dayInd, lessons ->
+                lessons.array<JsonObject>("lessons")!!.forEachIndexed { lessonInd, classes ->
+                    classes.array<JsonObject>("classes")!!.forEachIndexed { classInd, groups ->
+                        groups.array<JsonObject>("groups")!!.forEach {
+                            val group = Timetable.TT.TimetableDay.TimetableLesson.TimetableClass.TimetableCell(
+                                    classInd = it.int("classInd")!!, roomInd = it.int("roomInd")!!,
+                                    teacherInd = it.int("teacherInd")!!, groupInd = it.int("groupInd")!!,
+                                    subjects = ArrayList(it.array<String>("subjects")!!))
+                            timetable.timetable.days[dayInd].lessons[lessonInd].classes[classInd].groups.add(group)
+                        }
+                        timetable.timetable.days[dayInd].lessons[lessonInd].classes[classInd].groups.sortBy { it.groupInd }
+                    }
+                }
+            }
+
+            val changesObj = jsonObject.obj("changes")!!
+            val changes = Timetable.Changes(timetable.classCount, changesObj.int("dayInd")!!)
+            changes.hasChanges = changesObj.array<Boolean>("hasChanges")!!.toTypedArray()
+
+            changesObj.array<JsonObject>("changes")!!.forEach {
+                changes.changes.add(Timetable.Changes.ChangesClass(classInd = it.int("classInd")!!,
+                        changeData = ArrayList(it.array<String>("changeData")!!)))
+            }
+            changes.changes.forEachIndexed { index, changesClass -> changes.changeIndexes[changesClass.classInd] = index }
+            timetable.changes = changes
+            timetable.freeRooms.setAll(timetable)
+            return timetable
+        } catch (e: NullPointerException) {
+            println("Wrong JSON format")
+            e.printStackTrace()
+            return null
+        }
+    }
+
     fun createTimetable(fast: Boolean = BotConfig.isDebug): Timetable {
+        println("Creating timetable $fast")
         this.fast = fast
         getToken()
         lists = getLists()
