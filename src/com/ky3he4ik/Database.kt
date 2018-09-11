@@ -6,7 +6,7 @@ import kotlin.concurrent.thread
 
 data class User(val id: Long, var username: String, var firstName: String, var internalId: Int, var lastAccess: Int = 0,
                 var settings: Settings = Settings()) {
-    data class Settings(var type: Int = Type.CLASS.data, var typeInd: Int = 17, var notify: Boolean = true,
+    data class Settings(var type: Int = Type.CLASS.data, var typeInd: Int = 0, var notify: Boolean = true,
                         var currentState: List<Int> = listOf(2, 0, -1, -1, -1, -1, -1, -1),
                         var defaultPresentation: Int = Presentation.ALL_WEEK.data,
                         var defaultPresentationChanges: Int = Presentation.ALL_CLASSES.data,
@@ -64,16 +64,15 @@ class Database(loadType: Int = LoadType.READ.data) {
                 if (!load())
                     create()
             }
-            LoadType.CREATE.data -> {
+            LoadType.CREATE.data ->
                 create()
-            }
             else -> throw RuntimeException("$loadType is not supported")
         }
         thread(isDaemon = true, name = "Updating thread") {
             var counter = 0
             while (Common.work) {
                 try {
-                    Thread.sleep(30 * 60 * 1000L) // daevery 30 min
+                    Thread.sleep(30 * 60 * 1000L) // every 30 min
                     update(false, counter % 8 == 0)
                     println("Updated")
                     counter++
@@ -120,7 +119,6 @@ class Database(loadType: Int = LoadType.READ.data) {
                 "Теперь Вы - представитель почётной проффессии - педагог ${timetable.teacherNames[typeInd]}"
             Type.ROOM.data ->  "Теперь ты - представитель в телеграмме комнаты №${timetable.roomInd[typeInd]}"
             //TODO: replace by room names
-
             else -> {
                 users[userId]!!.reSet(oldValues.first, oldValues.second)
                 "Что-то я таких не знаю"
@@ -161,17 +159,12 @@ class Database(loadType: Int = LoadType.READ.data) {
             users[userId] = user
         } else
             addUser(userId, username, firstName, lastAccess)
-
-
     }
 
     fun writeAll() {
         IO.writeJSON(timetableFile, timetable)
         IO.writeJSON(feedbackFile, feedbackArray)
         IO.writeJSON(usersFile, users)
-//        IO.writeJSON2(timetableFile + "_", timetable)
-//        IO.writeJSON2(feedbackFile + "_", feedbackArray)
-//        IO.writeJSON2(usersFile + "_", users)
     }
 
     fun addFeedback(userId: Long, text: String) {
@@ -210,7 +203,7 @@ class Database(loadType: Int = LoadType.READ.data) {
             diffInd = newChanges.changeIndexes.keys
         else {
             newChanges.changes.forEach {
-                if (!oldChanges.hasChanges[it.classInd] || oldChanges.changes[oldChanges.changeIndexes[it.classInd]!!].changeData.notEquals(it.changeData))
+                if (it.classInd == -1 || !oldChanges.hasChanges[it.classInd] || oldChanges.changes[oldChanges.changeIndexes[it.classInd]!!].changeData.notEquals(it.changeData))
                     diffInd.add(it.classInd)
             }
         }

@@ -29,16 +29,13 @@ fun callbackQuery(userId: Long, data: List<Int>, chatId: Long, messageId: Int? =
                         txt.append("/r_").append(it + 1).append(" : ").append(Main.db.timetable.roomNames[it])
                                 .append('\n')
                 }
-                else -> txt.append("Такого у меня нет")
+                else -> txt.append("\nТакого у меня нет")
             }
             Main.db.setUserState(userId, arrayListOf(data[2], data[3], -1, -1, -1, -1, -1, -1))
             keyboard = InlineKeyboardMarkup().setKeyboard(listOf(listOf(
-                    InlineKeyboardButton("Класс").setCallbackData("1." + Type.CLASS.data.toString() + '.' +
-                            data[2].toString() + '.' + data[3].toString() + ".-1.-1.-1.-1"),
-                    InlineKeyboardButton("Учитель").setCallbackData("1." + Type.TEACHER.data.toString() +
-                            '.' + data[2].toString() + '.' + data[3].toString() + ".-1.-1.-1.-1"),
-                    InlineKeyboardButton("Кабинет").setCallbackData("1." + Type.ROOM.data.toString() + '.' +
-                            data[2].toString() + '.' + data[3].toString() + ".-1.-1.-1.-1")
+                    InlineKeyboardButton("Класс").setCallbackData(arrayToString(arrayOf(1, Type.CLASS.data, data[2], data[3]))),
+                    InlineKeyboardButton("Учитель").setCallbackData(arrayToString(arrayOf(1, Type.TEACHER.data, data[2], data[3]))),
+                    InlineKeyboardButton("Кабинет").setCallbackData(arrayToString(arrayOf(1, Type.ROOM.data, data[2], data[3])))
             )))
             text = txt.toString()
         }
@@ -122,20 +119,18 @@ fun callbackQuery(userId: Long, data: List<Int>, chatId: Long, messageId: Int? =
                     listOf(InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
         }
         6 -> {
-            val userSettings = Main.db.getUser(userId)?.settings
+            var userSettings = Main.db.getUser(userId)?.settings
             if (userSettings == null)
                 text = "Хмм... Я тебя не могу узнать. Нажми /start, дабы я смог вспомнить тебя"
             else {
                 if (data[4] != -1 && data[5] != -1)
-                    userSettings.type = data[4]
-                userSettings.typeInd = data[5]
+                    Main.db.updateUserSettings(userId, data[4], data[5])
+                userSettings = Main.db.getUser(userId)!!.settings
                 text = userSettings.toString(Main.db)
                 keyboard = getSettingsKeyboard()
                 when (data[1]) {
-                    0, 1 -> {
-                        if (data[1] == 1)
-                            userSettings.notify = !userSettings.notify
-                    }
+                    0 -> {}
+                    1 -> userSettings.notify = !userSettings.notify
                     2 -> if (data[7] != -1)
                         userSettings.defaultPresentation = data[7]
                     else {
@@ -195,9 +190,9 @@ fun callbackQuery(userId: Long, data: List<Int>, chatId: Long, messageId: Int? =
                     listOf(InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
             text = when (data[1]) {
                 0 -> "Da-da?"
-                1 -> "Этот бот просто берет расписание с сайта lyceum.urfu.ru и показывает его в другой, " +
-                        "более удобной (надеюсь) форме\nTODO: Сделать нормальный текст тут"
-                2 -> BotConfig.helpMes
+                1 -> "Этот бот просто берет расписание с сайта lyceum.urfu.ru и показывает его в другой, более удобной (надеюсь) форме\n" +
+                        "Я вполне мог накосячить, так что буду рад найденным багам в фидбеке\nVersion 2.0.1 by @Ky3He4iK"
+                2 -> Constants.helpMes
                 3 -> "Хочешь сказать что-нибудь о боте? Или просто пообщаться со мной? Напиши что-нибудь"
                 else -> "Эта кнопка не совсем рабочая, но все равно: Da-da?"
             }

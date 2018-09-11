@@ -12,7 +12,7 @@ object TimetableBuilder {
     private data class ListObject(val index: String, val name: String)
 
     private fun getToken() {
-        var page = IO.get(BotConfig.urlLists, fast)
+        var page = IO.get(Constants.urlLists, fast)
         page = page.substring(page.indexOf("<script>var tmToken=\"") + "<script>var tmToken=\"".length)
         token = page.substring(0, page.indexOf("\"</script>"))
     }
@@ -20,7 +20,7 @@ object TimetableBuilder {
     private fun getLists(): HashMap<String, ArrayList<ListObject>> {
         val answer = HashMap<String, ArrayList<ListObject>>()
 
-        val page = IO.get(BotConfig.urlLists, fast)
+        val page = IO.get(Constants.urlLists, fast)
         val array = page.substring(page.indexOf("<div class=\"tmtbl\""), page.indexOf("<script>var tmToken=")).split("tmtbl")
         answer[Constants.ClassesListName] = getListsSub(array[3])
         answer[Constants.TeachersListName] = getListsSub(array[4])
@@ -55,7 +55,7 @@ object TimetableBuilder {
     }
 
     private fun setClass(timetable: Timetable, classInd: Int, classYear: String, dayInd: Int) {
-        val page = IO.get(BotConfig.urlTimetable, mapOf(
+        val page = IO.get(Constants.urlTimetable, mapOf(
                 "tmToc" to token,
                 "tmrType" to "0",
                 "tmrClass" to classYear,
@@ -111,7 +111,7 @@ object TimetableBuilder {
     }
 
     private fun setTeacher(timetable: Timetable, teacherInd: Int) {
-        val page = IO.get(BotConfig.urlTimetable, mapOf(
+        val page = IO.get(Constants.urlTimetable, mapOf(
                 "tmToc" to token,
                 "tmrType" to "1",
                 "tmrClass" to "0",
@@ -164,7 +164,7 @@ object TimetableBuilder {
     }
 
     private fun getRawChanges(fast: Boolean): String {
-        val page = IO.get(BotConfig.urlTimetable, mapOf(
+        val page = IO.get(Constants.urlTimetable, mapOf(
                 "tmToc" to token,
                 "tmrType" to "1",
                 "tmrClass" to "0",

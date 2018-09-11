@@ -169,14 +169,15 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
             timetable.days[dayInd].lessons[lessonNum].classes[classInd].groups[groupInd]
 
     fun getTimetable(type: Int, typeInd: Int, dayInd: Int = 7): String {
-        if (typeInd == -1)
-            return "Что-то пошло не так"
-        if (type == Type.ROOM.data && typeInd == trap)
+        var ti = typeInd
+        if (ti == -1)
+            ti = 0
+        if (type == Type.ROOM.data && ti == trap)
             return "ACCESS DENIED"
-        val timetable = getTimetableMain(type, typeInd, dayInd)
-        var text = getTimetableTitle(type, typeInd, dayInd) + '\n' + if (timetable == "") "Нету расписания\n" else timetable
-        if (type == Type.CLASS.data && changes.hasChanges[typeInd])
-            text += "\nЕсть изменения\n" + changes.getChanges(this, typeInd, inline = true)
+        val timetable = getTimetableMain(type, ti, dayInd)
+        var text = getTimetableTitle(type, ti, dayInd) + '\n' + if (timetable == "") "Нету расписания\n" else timetable
+        if (type == Type.CLASS.data && changes.hasChanges[ti])
+            text += "\nЕсть изменения\n" + changes.getChanges(this, ti, inline = true)
         else if (changes.changes.size != 0)
             text += "Есть изменения."
         return text
@@ -218,7 +219,7 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
             Type.CLASS.data -> classNames[typeInd]
             Type.ROOM.data -> roomNames[typeInd]
             Type.TEACHER.data -> teacherNames[typeInd]
-            else -> "Что-то (или что-то) неизвестное"
+            else -> "Что-то (или кто-то) неизвестное"
         } + ". ${dayNames[curDay]}. ${curLes + 1}-й урок\n"
         return title + getTimetableLesson(type, typeInd, curDay, curLes)
     }

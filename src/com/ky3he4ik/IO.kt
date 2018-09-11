@@ -74,7 +74,7 @@ internal object IO {
         val parametersString = StringBuilder()
         for (it in parameters)
             parametersString.append(it.key).append('=').append(it.value).append("&")
-        return get(URL(url.toString() + '?' + parametersString.substring(0, parametersString.length - 1)), fast)
+        return get(URL(url.toString() + '?' + parametersString.dropLast(1).toString()), fast)
     }
 
     fun exists(filename: String): Boolean = File(filename).exists()

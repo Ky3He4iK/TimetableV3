@@ -150,7 +150,7 @@ class Main : TelegramLongPollingBot() {
                 db.setUserState(message.from.id.toLong(), arrayListOf(2, 0, -1, -1, -1, -1, -1, -1))
                 text = "Чем могу быть полезен?"
             }
-            compareCommand(cmd, "help") -> text = BotConfig.helpMes
+            compareCommand(cmd, "help") -> text = Constants.helpMes
 
             //sudo works only in private
             compareCommand(cmd, "sudo") && isAdmin(message.chatId) -> {
@@ -216,7 +216,8 @@ class Main : TelegramLongPollingBot() {
                 keyboard = null
             }
 
-            cmd.startsWith("c_", ignoreCase = true) || cmd.startsWith("t_", ignoreCase = true) ||
+            cmd.matches(Regex("[rRtTcC]_\\d+")) ||
+                    cmd.startsWith("c_", ignoreCase = true) || cmd.startsWith("t_", ignoreCase = true) ||
                     cmd.startsWith("r_", ignoreCase = true) -> {
                 val txt = StringBuilder()
                 val type: Int = when (cmd[0]) {
