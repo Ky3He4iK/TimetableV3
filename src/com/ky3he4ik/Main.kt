@@ -121,6 +121,13 @@ class Main : TelegramLongPollingBot() {
         Thread.sleep((1000 / 30.0).toLong()) // Avoiding flood limits
     }
 
+    fun onCLImes(message: String) {
+        //TODO: add processing as message
+        val data = message.split('.').map(String::toInt)
+        db.setUserState(-1, data)
+        callbackQuery(-1, data, -1, messageText = message)
+    }
+
     private fun setDefaultKeyboard() {
         Common.defaultKeyboard = InlineKeyboardMarkup().setKeyboard(listOf(
                 listOf(InlineKeyboardButton("Расписание").setCallbackData("3.0.-1.-1.-1.-1.-1.-1"),
@@ -153,12 +160,5 @@ class Main : TelegramLongPollingBot() {
             sb.append("}\n")
         }
         return sb.toString()
-    }
-
-    fun onCLImes(message: String) {
-        //TODO: add processing as message
-        val data = message.split('.').map(String::toInt)
-        db.setUserState(-1, data)
-        callbackQuery(-1, data, -1, messageText = message)
     }
 }
