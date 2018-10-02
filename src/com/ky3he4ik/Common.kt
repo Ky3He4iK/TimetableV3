@@ -1,12 +1,16 @@
 package com.ky3he4ik
 
-import org.telegram.telegrambots.api.objects.replykeyboard.InlineKeyboardMarkup
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
 import java.util.*
 
 
 data class MessageToSend(var text: String, val chatId: Long,
                          val inlineKeyboard: InlineKeyboardMarkup?, val messageId: Int = -1,
                          val silent: Boolean = false, val markdown: Boolean, val action: TelegramAction)
+
+data class IOParams(val text: String, val chatId: Long = BotConfig.fatherInd,
+                    val inlineKeyboard: InlineKeyboardMarkup? = Common.defaultKeyboard, val markdown: Boolean = false,
+                    val emergency: Boolean = false)
 
 //messageId - for edit; silent - for send
 internal object Common {
@@ -16,6 +20,13 @@ internal object Common {
     val emergencyMessageQueue = LinkedList<MessageToSend>()
     var defaultKeyboard: InlineKeyboardMarkup? = null
     var work: Boolean = true
+
+    fun sendMessage(params: IOParams, silent: Boolean = false) =
+        (if (params.emergency) emergencyMessageQueue else messageQueue).add(MessageToSend(text = params.text, chatId = params.chatId,
+                inlineKeyboard = params.inlineKeyboard, silent = silent, markdown = params.markdown, action = TelegramAction.SEND))
+    fun editMessage(params: IOParams, messageId: Int) =
+        (if (params.emergency) emergencyMessageQueue else messageQueue).add(MessageToSend(text = params.text, chatId = params.chatId,
+                inlineKeyboard = params.inlineKeyboard, messageId = messageId, markdown = params.markdown, action = TelegramAction.EDIT))
 
     fun sendMessage(text: String, chatId: Long = BotConfig.fatherInd,
                     inlineKeyboard: InlineKeyboardMarkup? = defaultKeyboard, silent: Boolean = false,
@@ -42,6 +53,7 @@ internal object Common {
     fun log(tag: String, message: String?, e: Exception) {
         println("${Constants.logBoundaryOpen}\n$tag: $message")
         e.printStackTrace()
+        Thread.sleep(10)
         println("\n${Constants.logBoundaryClose}")
         //TODO: timestamp in logs
     }

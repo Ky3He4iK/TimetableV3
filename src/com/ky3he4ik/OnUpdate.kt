@@ -1,9 +1,177 @@
 package com.ky3he4ik
 
-import org.telegram.telegrambots.api.objects.replykeyboard.InlineKeyboardMarkup
-import org.telegram.telegrambots.api.objects.replykeyboard.buttons.InlineKeyboardButton
+import org.telegram.telegrambots.meta.api.objects.CallbackQuery
+import org.telegram.telegrambots.meta.api.objects.Message
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton
 
-fun callbackQuery(userId: Long, data: List<Int>, chatId: Long, messageId: Int? = null, messageTest: String? = null) {
+fun onUserMes(message: Message) {
+    bot.db.updateUserInfo(message.from.id.toLong(), message.from.userName, message.from.firstName, message.date)
+    Common.log("Main/Message", "Message:")
+}
+
+fun extractCmd(command: String): String {
+    val spaceInd = command.indexOf(' ')
+    return command.substring(if (command[0] == '/') 1 else 0, if (spaceInd != -1) spaceInd else command.length)
+}
+
+fun compareCommand(cmd: String, pattern: String): Boolean =
+        cmd.equals(pattern, ignoreCase = true) || cmd.equals("$pattern@$bot.botUsername", ignoreCase = true)
+
+fun addUser(message: Message) =
+        bot.db.addUser(message.from.id.toLong(), message.from.userName, message.from.firstName, message.date)
+
+fun isAdmin(userId: Long): Boolean = userId == Constants.fatherInd
+
+fun onMessage(message: Message) {
+    onUserMes(message)
+    val cmd = extractCmd(message.text)
+    val text: String
+    var keyboard: InlineKeyboardMarkup? = Common.defaultKeyboard
+    when {
+        compareCommand(cmd, "ping") -> {
+            Common.sendMessage(IOParams("Pong!", chatId = message.chatId, inlineKeyboard = null))
+            return
+        }
+        compareCommand(cmd, "start") -> {
+            if (bot.db.hasUser(message.from.id.toLong())) {
+                addUser(message)
+                keyboard = InlineKeyboardMarkup().setKeyboard(listOf(listOf(InlineKeyboardButton("Дальше")
+                        .setCallbackData("1.0.6.5.-1.-1.-1.-1"))))
+                text = "Привет, " + message.from.firstName + "!\nЯ буду показывать тебе расписание, " +
+                        "но сначала я должен узнать немного о тебе"
+                bot.db.setUserState(message.from.id.toLong(), arrayListOf(1, 0, 2, 0, -1, -1, -1, -1))
+            } else
+                text = message.from.firstName + ", ты уже зарегистрирован"
+        }
+        compareCommand(cmd, "menu") -> {
+            bot.db.setUserState(message.from.id.toLong(), arrayListOf(2, 0, -1, -1, -1, -1, -1, -1))
+            text = "Чем могу быть полезен?"
+        }
+        compareCommand(cmd, "help") -> text = Constants.helpMes
+
+        //sudo works only in private
+        compareCommand(cmd, "sudo") && isAdmin(message.chatId) -> {
+            text = "/sudoUpdate [any]\n/sudoUpdateSlow [any]\n/sudoWrite\n/sudoGet\n" +
+                    "/sudoAns <id> <text> - ans to feedback\n/sudoSay <id> <text> - say by id\n" +
+                    "/sudoSend <text> - send to all\n/sudoStop"
+            keyboard = null
+        }
+        compareCommand(cmd, "sudoWrite") && isAdmin(message.chatId) -> {
+            bot.db.writeAll()
+            text = "OK"
+            keyboard = null
+        }
+        compareCommand(cmd, "sudoUpdate") && isAdmin(message.chatId) -> {
+            Common.sendMessage(IOParams("Starting update...", inlineKeyboard = null))
+            bot.db.update(full = message.text.contains(' '), fast = true)
+            text = "OK"
+            keyboard = null
+        }
+        compareCommand(cmd, "sudoUpdateSlow") && isAdmin(message.chatId) -> {
+            bot.db.update(full = message.text.contains(' '), fast = false)
+            text = "OK"
+            keyboard = null
+        }
+        compareCommand(cmd, "sudoGet") && isAdmin(message.chatId) -> {
+            val strBuilder = StringBuilder("feedback:\n")
+            bot.db.feedbackArray.forEach { strBuilder.append("${it.internalId}. ${it.userId} " +
+                    "(@${bot.db.getUser(it.userId)!!.username}; ${bot.db.getUser(it.userId)!!.firstName})\n${it.text}\n\n")}
+            text = strBuilder.substring(0, strBuilder.length - 2)
+            keyboard = null
+        }
+        compareCommand(cmd, "sudoAns") && isAdmin(message.chatId) -> {
+            val ta = message.text.split(' ')
+            val feedback = bot.db.feedbackArray[ta[1].toInt()]
+            val txt = message.text.substring(ta[0].length + ta[1].length + 2)
+            Common.sendMessage(IOParams("Ответ на твой фидбек:\n$txt", feedback.userId, null))
+            bot.db.removeFeedback(ta[1].toInt())
+            text = "OK"
+            keyboard = null
+        }
+        compareCommand(cmd, "sudoSay") && isAdmin(message.chatId) -> {
+            val ta = message.text.split(' ')
+            val userId = ta[1].toLong()
+            val txt = message.text.substring(ta[0].length + ta[1].length + 2)
+            Common.sendMessage(IOParams(txt, userId, null))
+            text = "OK"
+            keyboard = null
+        }
+        compareCommand(cmd, "sudoSend") && isAdmin(message.chatId) -> {
+            val txt = message.text.substring(message.text.indexOf(' ') + 1)
+            bot.db.sendToAll(txt)
+            text = "OK"
+            keyboard = null
+        }
+        compareCommand(cmd, "sudoStop") && isAdmin(message.chatId) -> {
+            if (Common.emergencyMessageQueue.isNotEmpty() || Common.messageQueue.isNotEmpty())
+                text = "Queue to send is not empty"
+            else {
+                bot.db.writeAll()
+                Common.work = false
+                text = "OK"
+            }
+            keyboard = null
+        }
+
+        cmd.matches(Regex("[rRtTcC]_\\d+")) ||
+                cmd.startsWith("c_", ignoreCase = true) || cmd.startsWith("t_", ignoreCase = true) ||
+                cmd.startsWith("r_", ignoreCase = true) -> {
+            val txt = StringBuilder()
+            val type: Int = when (cmd[0]) {
+                'c' -> Type.CLASS.data
+                'r' -> Type.ROOM.data
+                't' -> Type.TEACHER.data
+                else -> {
+                    txt.append("Прости, я тебя не понимаю\n")
+                    Type.OTHER.data
+                }
+            }
+            val ind = cmd.substring(2).toIntOrNull()
+            when {
+                ind == null -> txt.append("Что-то пошло не так")
+                !bot.db.timetable.has(type, ind - 1) -> txt.append("Таких у меня нет")
+                else -> {
+                    val currState = bot.db.getUser(message.from.id.toLong())?.settings?.currentState?.toMutableList()
+                            ?: mutableListOf(2, 0, -1, -1, -1, -1, -1, -1)
+                    currState[4] = type
+                    currState[5] = ind - 1
+                    callbackQuery(message.from.id.toLong(), currState, message.chatId)
+                }
+            }
+            text = txt.toString()
+        }
+        bot.db.hasUser(message.from.id.toLong()) && bot.db.getUser(message.from.id.toLong())!!.settings.currentState == arrayListOf(7, 3, -1, -1, -1, -1, -1, -1) -> {
+            bot.db.addFeedback(message.from.id.toLong(), message.text)
+            text = "Спасибо за отзыв! В скором времени ты получишь ответ от моего создателя"
+        }
+        cmd.matches(Regex("(-?[\\d]+\\.){7}-?[\\d]+")) -> {
+            // I had a problem
+            // So I used regexp
+            // Now I have 2 problems
+            callbackQuery(message.from.id.toLong(), message.text.split('.').map(String::toInt), message.chatId)
+            return
+        }
+        else -> text = "Моя твоя не понимать (/menu)"
+    }
+    if (text.isNotEmpty())
+        Common.sendMessage(IOParams(text, message.chatId, keyboard))
+}
+
+fun onCallbackQuery(callbackQuery: CallbackQuery) {
+    try {
+        val data = callbackQuery.data.split('.').map(String::toInt)
+        val userId = callbackQuery.from.id.toLong()
+        bot.db.setUserState(userId, data)
+        callbackQuery(userId, data, callbackQuery.message.chatId, callbackQuery.message.messageId, callbackQuery.message.text)
+    } catch (e: Exception) {
+        Common.log("Main/onCallback", e.message, e)
+        Common.sendMessage("Я упаль(\n${e.message}", inlineKeyboard = null, emergency = true)
+        Common.sendMessage("Что-то пошло не так, и оно упало", callbackQuery.from.id.toLong(), inlineKeyboard = null)
+    }
+}
+
+fun callbackQuery(userId: Long, data: List<Int>, chatId: Long, messageId: Int? = null, messageText: String? = null) {
     var text: String
     var keyboard: InlineKeyboardMarkup? = Common.defaultKeyboard
     var markdown = false
@@ -228,9 +396,9 @@ fun callbackQuery(userId: Long, data: List<Int>, chatId: Long, messageId: Int? =
         else -> text = "Ты действительно думаешь, что это была валидная кнопка?"
     }
     if (messageId == null)
-        Common.sendMessage(text, chatId, inlineKeyboard = keyboard, markdown = markdown)
-    else if (text != messageTest)
-        Common.editMessage(text, chatId, inlineKeyboard = keyboard, messageId = messageId, markdown = markdown)
+        Common.sendMessage(IOParams(text, chatId, inlineKeyboard = keyboard, markdown = markdown))
+    else if (text != messageText)
+        Common.editMessage(IOParams(text, chatId, inlineKeyboard = keyboard, markdown = markdown), messageId)
 }
 
 private fun arrayToString(array: Array<Int>): String {

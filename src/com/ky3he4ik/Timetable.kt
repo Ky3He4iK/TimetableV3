@@ -12,9 +12,10 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
             class TimetableLesson(classCount: Int) {
                 val classes = Array(classCount) { TimetableClass() }
 
-                 class TimetableClass(val groups: ArrayList<TimetableCell> = ArrayList()) {
-                    data class TimetableCell(val classInd: Int, val roomInd: Int, var teacherInd: Int,
-                                             val subjects: ArrayList<String>, val groupInd: Int)
+                 class TimetableClass {
+                     val groups: ArrayList<TimetableCell> = ArrayList()
+                     data class TimetableCell(val classInd: Int, val roomInd: Int, var teacherInd: Int,
+                                              val subjects: ArrayList<String>, val groupInd: Int)
                 }
             }
         }
@@ -45,21 +46,26 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
         }
 
         private fun getFreeRooms(timetable: Timetable, dayInd: Int = 7, lessonInd: Int = -1): String {
-            if (dayInd == 7) {
-                val sb = StringBuilder()
-                Array(6) { getFreeRooms(timetable, it) }.forEach { sb.append(it).append("\n\n") }
-                return sb.substring(0, sb.length - 2)
+            val sb = StringBuilder()
+            return when {
+                dayInd == 7 -> {
+                    for (it in 0 until 6)
+                        sb.append(getFreeRooms(timetable, it)).append("\n\n")
+                    sb.dropLast(2).toString()
+                }
+                lessonInd == -1 -> {
+                    sb.append(timetable.dayNames[dayInd]).append('\n')
+                    for (it in 0 until 7)
+                        sb.append(getFreeRooms(timetable, dayInd, it)).append("\n")
+                    sb.dropLast(1).toString()
+                }
+                else -> {
+                    sb.append(lessonInd + 1).append(". ")
+                    for (it in days[dayInd].lessons[lessonInd].rooms)
+                        sb.append(timetable.roomNames[it]).append(", ")
+                    sb.dropLast(2).toString()
+                }
             }
-            if (lessonInd == -1) {
-                val sb = StringBuilder(timetable.dayNames[dayInd]).append('\n')
-                Array(7) { getFreeRooms(timetable, dayInd, it) }.forEach { sb.append(it).append("\n") }
-                return sb.substring(0, sb.length - 1)
-            }
-            val sb =  StringBuilder().append(lessonInd + 1).append(". ")
-            days[dayInd].lessons[lessonInd].rooms.forEach {
-                sb.append(timetable.roomNames[it]).append(", ")
-            }
-            return sb.substring(0, sb.length - 2)
         }
 
         private fun getFreeRoomsToday(timetable: Timetable): String =
@@ -90,12 +96,12 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
 
         fun getFreeRoomsPresentation(presentation: Int, timetable: Timetable, dayInd: Int = 7): String =
                 when (presentation) {
-                Presentation.ALL_WEEK.data -> getFreeRooms(timetable)
-                Presentation.NEAR.data -> getFreeRoomsNear(timetable)
-                Presentation.TOMORROW.data -> getFreeRoomsTomorrow(timetable)
-                Presentation.TODAY.data -> getFreeRoomsToday(timetable)
-                else -> getFreeRooms(timetable, dayInd)
-        }
+                    Presentation.ALL_WEEK.data -> getFreeRooms(timetable)
+                    Presentation.NEAR.data -> getFreeRoomsNear(timetable)
+                    Presentation.TOMORROW.data -> getFreeRoomsTomorrow(timetable)
+                    Presentation.TODAY.data -> getFreeRoomsToday(timetable)
+                    else -> getFreeRooms(timetable, dayInd)
+                }
     }
 
     class Changes(classCount: Int, var dayInd: Int = -1) {
@@ -105,36 +111,41 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
 
         data class ChangesClass(val classInd: Int, val changeData: ArrayList<String>)
 
-        fun getChanges(timetable: Timetable, classInd: Int = -1, inline: Boolean = false): String {
-            if (dayInd == -1 || dayInd == 7)
-                return "Нет данных об изменениях"
-            if (classInd == -1) {
+        private fun getChangesAll(timetable: Timetable, inline: Boolean): String {
+            val answer = StringBuilder()
+            for (it in changes) {
+                answer.append(timetable.classNames[it.classInd]).append(':')
+                for (i in it.changeData)
+                    answer.append(i).append('\n')
+            }
+            var endStr = timetable.dayNames[dayInd] + ":\n" + answer
+            if (!inline)
+                endStr = "Изменения на $endStr"
+            return endStr
+        }
+
+        private fun getChangesClass(timetable: Timetable, classInd: Int, inline: Boolean): String {
+            if (changeIndexes.keys.contains(classInd)) {
+                val changeCell = changes[changeIndexes[classInd]!!]
                 val answer = StringBuilder()
-                for (it in changes) {
-                    answer.append(timetable.classNames[it.classInd]).append(':')
-                    for (i in it.changeData)
-                        answer.append(i).append('\n')
-                }
-                var endStr = timetable.dayNames[dayInd] + ":\n" + answer
-                if (!inline)
-                    endStr = "Изменения на $endStr"
-                return endStr
+                for (it in changeCell.changeData)
+                    answer.append(it).append('\n')
+                if (inline)
+                    return timetable.dayNames[dayInd] + ":\n" + answer
+                return "Изменения на ${timetable.dayNames[dayInd]} для ${timetable.classNames[classInd]}:\n$answer"
+            } else {
+                Common.sendMessage("$classInd (${timetable.classNames[classInd]}) - класс Шредингера в плане изменений")
+                return "Не все идет по плану. Эта ситуация - яркий пример подобного"
             }
-            if (hasChanges[classInd]) {
-                if (changeIndexes.keys.contains(classInd)) {
-                    val changeCell = changes[changeIndexes[classInd]!!]
-                    val answer = StringBuilder()
-                    for (it in changeCell.changeData)
-                        answer.append(it).append('\n')
-                    if (inline)
-                        return timetable.dayNames[dayInd] + ":\n" + answer
-                    return "Изменения на ${timetable.dayNames[dayInd]} для ${timetable.classNames[classInd]}:\n$answer"
-                } else {
-                    Common.sendMessage("$classInd (${timetable.classNames[classInd]}) - класс Шредингера в плане изменений")
-                    return "Не все идет по плану. Эта ситуация - яркий пример подобного"
-                }
+        }
+
+        fun getChanges(timetable: Timetable, classInd: Int = -1, inline: Boolean = false): String {
+            return when {
+                dayInd == -1 || dayInd == 7 -> "Нет данных об изменениях"
+                classInd == -1 -> getChangesAll(timetable, inline)
+                hasChanges[classInd] -> getChangesClass(timetable, classInd, inline)
+                else -> "Нету изменений для ${timetable.classNames[classInd]}"
             }
-            return "Нету изменений для " + timetable.classNames[classInd]
         }
 
         fun getChangesPres(presentation: Int, timetable: Timetable, classInd: Int = -1, inline: Boolean = false): String

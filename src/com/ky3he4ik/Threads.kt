@@ -1,9 +1,9 @@
 package com.ky3he4ik
 
-import org.telegram.telegrambots.exceptions.TelegramApiException
 import java.time.LocalDateTime
 import kotlin.concurrent.thread
 import com.ky3he4ik.Common.log
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException
 
 internal object Threads {
     fun startDaemonThread(threadName: String, threadAction: () -> Unit) {
