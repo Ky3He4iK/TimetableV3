@@ -332,12 +332,12 @@ private fun arrayToString(array: Array<Int>): String {
 }
 
 private fun getSettingsKeyboard(): InlineKeyboardMarkup = InlineKeyboardMarkup().setKeyboard(listOf(
-        listOf(InlineKeyboardButton("Оповещения вкл/выкл").setCallbackData(arrayToString(arrayOf(6, 1))),
-                InlineKeyboardButton("Изменить себя").setCallbackData(arrayToString(arrayOf(1, 0, 6, 0))),
-                InlineKeyboardButton("Расписание по умолчанию").setCallbackData(arrayToString(arrayOf(6, 2)))),
-        listOf(InlineKeyboardButton("Изменения по умолчанию").setCallbackData(arrayToString(arrayOf(6, 3))),
-                InlineKeyboardButton("Свободные кабинеты по умолчанию").setCallbackData(arrayToString(arrayOf(6, 4)))),
-        listOf(InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
+        listOf(button("Оповещения вкл/выкл", arrayOf(6, 1)),
+                button("Изменить себя", arrayOf(1, 0, 6, 0)),
+                button("Расписание по умолчанию", arrayOf(6, 2))),
+        listOf(button("Изменения по умолчанию", arrayOf(6, 3)),
+                button("Свободные кабинеты по умолчанию", arrayOf(6, 4))),
+        listOf(button("Назад", arrayOf(2, 0)))))
 
 
 private fun onUserMes(message: Message) 
