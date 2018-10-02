@@ -1,5 +1,6 @@
 package com.ky3he4ik
 
+import com.ky3he4ik.Common.log
 import org.json.JSONObject
 
 object TimetableBuilder {
@@ -64,7 +65,7 @@ object TimetableBuilder {
                 "tmrDay" to (dayInd + 1).toString()
         ), fast)
         if (page == "Err\n")
-            print("Something bad was happened with $classInd at $dayInd")
+            log("TTBuilder/setClass", "Something bad was happened with $classInd at $dayInd")
         else
             for (lesson in page.substring(page.indexOf("<tr>") + "<tr>".length).split("<tr>"))
                 setClassLesson(timetable, classInd, dayInd, lesson)
@@ -120,7 +121,7 @@ object TimetableBuilder {
                 "tmrDay" to "0"
         ), fast)
         if (page == "Err\n")
-            println("Something bad was happened with $teacherInd (${timetable.teacherNames[teacherInd]})")
+            log("TTBuilder/setTeacher", "Something bad was happened with $teacherInd (${timetable.teacherNames[teacherInd]})")
         else if (page.contains("Уроков не найдено"))
             return
         for (dayInfo in page.substring(page.indexOf("<h3>") + "<h3>".length, page.indexOf("<details><summary>")).split("<h3>"))
@@ -151,7 +152,7 @@ object TimetableBuilder {
         if (dayInd < 0 || lessonNum < 0 || dayInd >= timetable.timetable.days.size ||
                 lessonNum >= timetable.timetable.days[dayInd].lessons.size ||
                 classInd >= timetable.timetable.days[dayInd].lessons[lessonNum].classes.size)
-            println("Houston, we’ve had a problem ($dayInd $lessonNum $classInd)")
+            log("TTBuilder/setTDS", "Houston, we’ve had a problem ($dayInd $lessonNum $classInd)")
 
         val groupInd = if (groupNum == 2
                 && timetable.timetable.days[dayInd].lessons[lessonNum].classes[classInd].groups.size != 1) 1 else 0
@@ -173,7 +174,7 @@ object TimetableBuilder {
                 "tmrDay" to "0"
         ), fast)
         if (page == "Err\n") {
-            println("Can't get raw changes")
+            log("TTBuilder/getRChanges", "Can't get raw changes")
             return ""
         }
         return page.substring(page.indexOf("</summary>") + "</summary>".length)
@@ -277,14 +278,13 @@ object TimetableBuilder {
             timetable.freeRooms.setAll(timetable)
             return timetable
         } catch (e: NullPointerException) {
-            println("Wrong JSON format")
-            e.printStackTrace()
+            log("TTBuilder/load", "Wrong JSON format", e)
             return null
         }
     }
 
     fun createTimetable(fast: Boolean = BotConfig.isDebug): Timetable {
-        println("Creating timetable $fast")
+        log("TTBuilder/createTT", "Creating timetable. Smaller IO delay: $fast")
         this.fast = fast
         getToken()
         lists = getLists()
@@ -320,7 +320,7 @@ object TimetableBuilder {
         changes.dayInd = getDayByChanges(rawChanges
                 .substring(rawChanges.indexOf("НА ") + "НА ".length))
         if (changes.dayInd == -1) {
-            println("Changes' day ind is -1!")
+            log("TTBuilder/getChanges", "Changes' day ind is -1!")
             return changes
         }
         rawChanges = rawChanges.substring(rawChanges.indexOf("</h3>") + "<h3>".length)

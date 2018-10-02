@@ -12,89 +12,41 @@ import org.telegram.telegrambots.api.objects.replykeyboard.buttons.InlineKeyboar
 import org.telegram.telegrambots.bots.TelegramLongPollingBot
 import org.telegram.telegrambots.exceptions.TelegramApiException
 
-import java.time.LocalDateTime
-import kotlin.concurrent.thread
+import com.ky3he4ik.Common.log
+
+val bot = Main()
 
 fun main(args: Array<String>) {
-    BotConfig.isDebug = true
-    thread(isDaemon = true, name = "Time thread") {
-        while (true) {
-            try {
-                var hour = LocalDateTime.now().hour + 3
-                var day = LocalDateTime.now().dayOfWeek.value
-                if (hour > 23) {
-                    hour -= 24
-                    day = (day + 1) % 7
-                }
-                if (day > 0)
-                    day--
-                Common.currentLesson = 7
-                for (it in 0 until Constants.lessonTimes.size)
-                    if (hour < Constants.lessonTimes[it][0] ||
-                            (hour == Constants.lessonTimes[it][0] && LocalDateTime.now().minute < Constants.lessonTimes[it][1]))
-                        Common.currentLesson =  it
-                Common.currentDay = day
-                println("$day $hour")
-                Thread.sleep(60 * 1000L)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-    main(args.isNotEmpty())
+    Threads.startDaemonThread("Time thread") { Threads.timeThread(); }
+    BotConfig.isDebug = args.isNotEmpty()
+    init()
 }
 
-fun main(debug: Boolean) {
-    BotConfig.isDebug = debug
+fun init() {
     try {
         ApiContextInitializer.init()
         val telegramBotsApi = TelegramBotsApi()
         try {
-            telegramBotsApi.registerBot(Main())
+            telegramBotsApi.registerBot(bot)
         } catch (e: TelegramApiException) {
-            e.printStackTrace()
+            log("Main/init", e.message ?: "Error on init", e)
         }
     } catch (e: Exception) {
-        e.printStackTrace()
+        log("Main/init", e.message ?: "Error on init", e)
     }
     while (Common.work)
         Thread.sleep(1000)
-    Main.db.writeAll()
+    bot.db.writeAll()
+
 }
 
 class Main : TelegramLongPollingBot() {
+    var db = Database()
     init {
         setDefaultKeyboard()
-        db = Database()
-        thread(isDaemon = true, name = "Send thread") {
-            while (true) {
-                try {
-                    if (Common.emergencyMessageQueue.isNotEmpty()) {
-                        try {
-                            sendMessage(Common.emergencyMessageQueue.first)
-                        } catch (e: TelegramApiException) {
-                            println("${Common.emergencyMessageQueue.first.text} ${e.message}")
-                            e.printStackTrace()
-                        }
-                        Common.emergencyMessageQueue.removeFirst()
-                    } else if (Common.messageQueue.isNotEmpty()) {
-                        try {
-                            sendMessage(Common.messageQueue.first)
-                        } catch (e: TelegramApiException) {
-                            println("${Common.messageQueue.first.text} ${e.message}")
-                            e.printStackTrace()
-                        }
-                        Common.messageQueue.removeFirst()
-                    }
-                } catch (e: Exception) {
-                    println(e.message)
-                    e.printStackTrace()
-                }
-                Thread.sleep(1)
-            }
-        }
-        println("Started")
-        println(db.timetable.getTimetable(Type.CLASS.data, db.getClassInd("11е")))
+        Threads.startDaemonThread("Send thread") { Threads.sendThread(); }
+        log("Main/Main/init", "Started")
+        log("Main/Main/init_test", db.timetable.getTimetable(Type.CLASS.data, db.getClassInd("11е")))
     }
 
     override fun getBotUsername(): String = if (BotConfig.isDebug) BotConfig.TestUsername else BotConfig.ReleaseUsername
@@ -110,7 +62,7 @@ class Main : TelegramLongPollingBot() {
             else if (update.hasCallbackQuery())
                 onCallbackQuery(update.callbackQuery)
         } catch (e: Exception) {
-            e.printStackTrace()
+            log("Main/onUpdate", e.message, e)
             try {
                 Common.sendMessage(Common.exceptionToString(e), inlineKeyboard = null, emergency = true)
                 val text = "Shit happens. " + (e.message ?: "Unknown shit")
@@ -120,7 +72,7 @@ class Main : TelegramLongPollingBot() {
                 if (update?.callbackQuery?.message?.chatId != null && update.callbackQuery?.message?.messageId != null)
                     Common.editMessage(text, chatId = update.callbackQuery.message.chatId,
                             messageId = update.callbackQuery.message.messageId, inlineKeyboard = null, emergency = true)
-            } catch (e: Exception) { /* On a server, nobody can hear you fail */ }
+            } catch (e: Exception) { /* On a server, no one can hear you crash */ }
         }
         //TODO: add checking for stop and add/remove to group
     }
@@ -137,7 +89,7 @@ class Main : TelegramLongPollingBot() {
             }
             compareCommand(cmd, "start") -> {
                 if (db.hasUser(message.from.id.toLong())) {
-                    db.addUser(message)
+                    addUser(message)
                     keyboard = InlineKeyboardMarkup().setKeyboard(listOf(listOf(InlineKeyboardButton("Дальше")
                             .setCallbackData("1.0.6.5.-1.-1.-1.-1"))))
                     text = "Привет, " + message.from.firstName + "!\nЯ буду показывать тебе расписание, " +
@@ -267,17 +219,18 @@ class Main : TelegramLongPollingBot() {
             val userId = callbackQuery.from.id.toLong()
             callbackQuery(userId, data, callbackQuery.message.chatId, callbackQuery.message.messageId, callbackQuery.message.text)
         } catch (e: Exception) {
-            println(e.message)
-            e.printStackTrace()
+            log("Main/onCallback", e.message, e)
             Common.sendMessage("Я упаль(\n${e.message}", inlineKeyboard = null, emergency = true)
             Common.sendMessage("Что-то пошло не так, и оно упало", callbackQuery.from.id.toLong(), inlineKeyboard = null)
         }
     }
 
-    private fun sendMessage(mes: MessageToSend) {
+    private fun addUser(message: Message) { db.addUser(message.from.id.toLong(), message.from.userName, message.from.firstName, message.date) }
+
+    fun sendMessage(mes: MessageToSend) {
         if (mes.text.isEmpty())
             return
-        println("Sending...")
+        log("Main/Send_Edit", "Sending...")
         when {
             mes.text.length > 4094 -> {
                 while (mes.text.length > 4094) {
@@ -289,7 +242,7 @@ class Main : TelegramLongPollingBot() {
                 sendMessage(mes)
                 return
             }
-            mes.isSend -> {
+            mes.action == TelegramAction.SEND -> {
                 val msg = SendMessage().setChatId(mes.chatId).enableMarkdown(mes.markdown).setText(mes.text)
                         .setReplyMarkup(mes.inlineKeyboard)
                 if (mes.silent)
@@ -297,11 +250,15 @@ class Main : TelegramLongPollingBot() {
                 sendApiMethod(msg)
                 Thread.sleep((1000 / 30.0).toLong())
             }
-            else -> {
+            mes.action == TelegramAction.EDIT -> {
                 val msg = EditMessageText().setChatId(mes.chatId).enableMarkdown(mes.markdown).setText(mes.text)
                         .setMessageId(mes.messageId).setReplyMarkup(mes.inlineKeyboard)
                 sendApiMethod(msg)
                 Thread.sleep((1000 / 30.0).toLong())
+            }
+            else -> {
+                log("Main/SendMes", "${Constants.logBoundaryOpen}\nUnexpected situation: ${mes.chatId} ${mes.action} ${mes.text}\n${Constants.logBoundaryClose}");
+                //Unexpected situation. Zero chances to evacuation
             }
         }
     }
@@ -338,10 +295,6 @@ class Main : TelegramLongPollingBot() {
 
     private fun onUserMes(message: Message) {
         db.updateUserInfo(message.from.id.toLong(), message.from.userName, message.from.firstName, message.date)
-        println("Message!")
-    }
-
-    companion object {
-        lateinit var db: Database
+        log("Main/Message", "Message:")
     }
 }

@@ -20,9 +20,12 @@ internal object Constants {
     const val helpMes = "Тут будут отображаться все поддерживаемые команды\n" +
             "На данный момент я понимаю:" +
             "/ping - Проверить работоспособность бота\n" +
-            "/menu - Если ты ничего не трогал, а оно само сломалось" +
+            "/menu - Если ты ничего не трогал, а оно само опять сломалось" +
             "/help - Это сообщение" //TODO: Сделать это
 
     val urlTimetable = URL("http://lyceum.urfu.ru/n/inc/tmtblAjax.php")
     val urlLists = URL("http://lyceum.urfu.ru/n/?p=tmtbl")
+
+    const val logBoundaryOpen = "------LOG PART------"
+    const val logBoundaryClose = "____END LOG PART____"
 }

@@ -34,3 +34,8 @@ enum class LoadType(val data: Int) {
     READ(0),
     CREATE(1)
 }
+
+enum class TelegramAction {
+    SEND,
+    EDIT
+}

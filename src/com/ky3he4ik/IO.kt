@@ -43,7 +43,7 @@ internal object IO {
     inline fun <reified T> readJSONArray(filename: String) : T {
         return Gson().fromJson<T>(read(filename), object : TypeToken<T>() {}.type)
     }
-    // Read by Klaxon, write by Gson. 2 Libraries for JSON isn't enough, need to add third :)
+
     fun <T> writeJSON(filename: String, t: T, overwrite: Boolean = true) {
         write(filename, GsonBuilder().setPrettyPrinting().create().toJson(t), overwrite)
     }

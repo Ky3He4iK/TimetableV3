@@ -1,8 +1,7 @@
 package com.ky3he4ik
 
 import com.google.gson.internal.LinkedTreeMap
-import org.telegram.telegrambots.api.objects.Message
-import kotlin.concurrent.thread
+import com.ky3he4ik.Common.log
 
 data class User(val id: Long, var username: String, var firstName: String, var internalId: Int, var lastAccess: Int = 0,
                 var settings: Settings = Settings()) {
@@ -68,26 +67,14 @@ class Database(loadType: Int = LoadType.READ.data) {
                 create()
             else -> throw RuntimeException("$loadType is not supported")
         }
-        thread(isDaemon = true, name = "Updating thread") {
-            var counter = 0
-            while (Common.work) {
-                try {
-                    Thread.sleep(30 * 60 * 1000L) // every 30 min
-                    update(false, counter % 8 == 0)
-                    println("Updated")
-                    counter++
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-        }
+        Threads.startDaemonThread("Updating thread") { Threads.updatingThread() }
     }
 
     private fun load(): Boolean {
         timetable = TimetableBuilder.load(timetableFile) ?: TimetableBuilder.createTimetable()
         feedbackArray = IO.readJSONArray(feedbackFile)
         users = HashMap(IO.readJSON<LinkedTreeMap<Long, User>>(usersFile).toMap())
-        println("Loaded from local files")
+        log("Db/loading", "Loaded from local files")
         return true
     }
 
@@ -96,7 +83,7 @@ class Database(loadType: Int = LoadType.READ.data) {
         feedbackArray = ArrayList()
         timetable = TimetableBuilder.createTimetable()
         writeAll()
-        println("Created/fetched")
+        log("Db/creating", "Created&fetched")
     }
 
     fun setUserState(userId: Long, newState: List<Int>) {
@@ -104,8 +91,6 @@ class Database(loadType: Int = LoadType.READ.data) {
     }
 
     fun hasUser(userId: Long): Boolean = users.containsKey(userId)
-
-    fun addUser(message: Message) = addUser(message.from.id.toLong(), message.from.userName, message.from.firstName, message.date)
 
     fun updateUserSettings(userId: Long, type: Int, typeInd: Int): String {
         if (typeInd == -1)
@@ -250,7 +235,7 @@ class Database(loadType: Int = LoadType.READ.data) {
 
     private fun getTeacherInd(teacher: String): Int = getSomethingInd(teacher, timetable.teacherNames)
 
-    private fun addUser(userId: Long, username: String, firstName: String, lastAccess: Int) {
+    fun addUser(userId: Long, username: String, firstName: String, lastAccess: Int) {
         users[userId] = User(userId, username, firstName, users.size, lastAccess)
     }
 }

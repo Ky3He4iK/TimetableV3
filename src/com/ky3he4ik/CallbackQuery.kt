@@ -13,25 +13,25 @@ fun callbackQuery(userId: Long, data: List<Int>, chatId: Long, messageId: Int? =
             when (data[1]) {
                 Type.CLASS.data -> {
                     txt.append("класс:\n")
-                    for (it in 0 until Main.db.timetable.classCount)
-                        txt.append("/c_").append(it + 1).append(" : ").append(Main.db.timetable.classNames[it])
+                    for (it in 0 until bot.db.timetable.classCount)
+                        txt.append("/c_").append(it + 1).append(" : ").append(bot.db.timetable.classNames[it])
                                 .append('\n')
                 }
                 Type.TEACHER.data -> {
                     txt.append("учителя:\n")
-                    for (it in 0 until Main.db.timetable.teacherNames.size)
-                        txt.append("/t_").append(it + 1).append(" : ").append(Main.db.timetable.teacherNames[it])
+                    for (it in 0 until bot.db.timetable.teacherNames.size)
+                        txt.append("/t_").append(it + 1).append(" : ").append(bot.db.timetable.teacherNames[it])
                                 .append('\n')
                 }
                 Type.ROOM.data -> {
                     txt.append("кабинет:\n")
-                    for (it in 0 until Main.db.timetable.roomsCount)
-                        txt.append("/r_").append(it + 1).append(" : ").append(Main.db.timetable.roomNames[it])
+                    for (it in 0 until bot.db.timetable.roomsCount)
+                        txt.append("/r_").append(it + 1).append(" : ").append(bot.db.timetable.roomNames[it])
                                 .append('\n')
                 }
                 else -> txt.append("\nТакого у меня нет")
             }
-            Main.db.setUserState(userId, arrayListOf(data[2], data[3], -1, -1, -1, -1, -1, -1))
+            bot.db.setUserState(userId, arrayListOf(data[2], data[3], -1, -1, -1, -1, -1, -1))
             keyboard = InlineKeyboardMarkup().setKeyboard(listOf(listOf(
                     InlineKeyboardButton("Класс").setCallbackData(arrayToString(arrayOf(1, Type.CLASS.data, data[2], data[3]))),
                     InlineKeyboardButton("Учитель").setCallbackData(arrayToString(arrayOf(1, Type.TEACHER.data, data[2], data[3]))),
@@ -41,7 +41,7 @@ fun callbackQuery(userId: Long, data: List<Int>, chatId: Long, messageId: Int? =
         }
         2 -> text = if (data[1] == 1) "Расписание звонков:\n" + Constants.bells else "Чем могу помочь?"
         3 -> {
-            val userSettings = Main.db.getUser(userId)?.settings
+            val userSettings = bot.db.getUser(userId)?.settings
             var type = data[4]
             var typeInd = data[5]
             var dayInd = data[6]
@@ -54,7 +54,7 @@ fun callbackQuery(userId: Long, data: List<Int>, chatId: Long, messageId: Int? =
             var presentation = data[1]
             if (presentation == 0)
                 presentation = userSettings?.defaultPresentation ?: Presentation.ALL_WEEK.data
-            text = Main.db.timetable.getTimetablePres(presentation, type, typeInd, dayInd)
+            text = bot.db.timetable.getTimetablePres(presentation, type, typeInd, dayInd)
             markdown = true
             val ending = arrayOf(type, typeInd, dayInd, data[1])
             val altEnding = arrayOf(-1, -1) + ending
@@ -75,14 +75,14 @@ fun callbackQuery(userId: Long, data: List<Int>, chatId: Long, messageId: Int? =
                             InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
         }
         4 -> {
-            val userSettings = Main.db.getUser(userId)?.settings
+            val userSettings = bot.db.getUser(userId)?.settings
             var presentation = data[1]
             if (presentation == 0)
                 presentation = userSettings?.defaultPresentationChanges ?: Presentation.ALL_CLASSES.data
             text = if (presentation == Presentation.OTHER.data && data[5] != -1)
-                Main.db.timetable.changes.getChanges(Main.db.timetable, data[5])
+                bot.db.timetable.changes.getChanges(bot.db.timetable, data[5])
             else
-                Main.db.timetable.changes.getChangesPres(presentation, Main.db.timetable, userSettings?.typeInd ?: 0)
+                bot.db.timetable.changes.getChangesPres(presentation, bot.db.timetable, userSettings?.typeInd ?: 0)
             var layer = listOf(
                     InlineKeyboardButton("Все классы").setCallbackData(arrayToString(arrayOf(
                             4, Presentation.ALL_CLASSES.data, -1, -1, -1, -1, -1, Presentation.ALL_CLASSES.data))),
@@ -96,14 +96,14 @@ fun callbackQuery(userId: Long, data: List<Int>, chatId: Long, messageId: Int? =
                     listOf(InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
         }
         5 -> {
-            val userSettings = Main.db.getUser(userId)?.settings
+            val userSettings = bot.db.getUser(userId)?.settings
             var presentation = data[1]
             if (presentation == 0)
                 presentation = userSettings?.defaultPresentationRooms ?: Presentation.ALL_WEEK.data
             var dayInd = data[6]
             if (dayInd == -1)
                 dayInd = 7
-            text = Main.db.timetable.freeRooms.getFreeRoomsPresentation(presentation, Main.db.timetable, dayInd)
+            text = bot.db.timetable.freeRooms.getFreeRoomsPresentation(presentation, bot.db.timetable, dayInd)
             markdown = true
             keyboard = InlineKeyboardMarkup().setKeyboard(listOf(
                     listOf(InlineKeyboardButton("Сегодня").setCallbackData(arrayToString(arrayOf(
@@ -119,14 +119,14 @@ fun callbackQuery(userId: Long, data: List<Int>, chatId: Long, messageId: Int? =
                     listOf(InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
         }
         6 -> {
-            var userSettings = Main.db.getUser(userId)?.settings
+            var userSettings = bot.db.getUser(userId)?.settings
             if (userSettings == null)
                 text = "Хмм... Я тебя не могу узнать. Нажми /start, дабы я смог вспомнить тебя"
             else {
                 if (data[4] != -1 && data[5] != -1)
-                    Main.db.updateUserSettings(userId, data[4], data[5])
-                userSettings = Main.db.getUser(userId)!!.settings
-                text = userSettings.toString(Main.db)
+                    bot.db.updateUserSettings(userId, data[4], data[5])
+                userSettings = bot.db.getUser(userId)!!.settings
+                text = userSettings.toString(bot.db)
                 keyboard = getSettingsKeyboard()
                 when (data[1]) {
                     0 -> {}
@@ -176,7 +176,7 @@ fun callbackQuery(userId: Long, data: List<Int>, chatId: Long, messageId: Int? =
                                 listOf(InlineKeyboardButton("Назад").setCallbackData(arrayToString(arrayOf(2, 0))))))
                     }
                 }
-                Main.db.getUser(userId)?.settings = userSettings
+                bot.db.getUser(userId)?.settings = userSettings
             }
         }
         7 -> {
@@ -221,9 +221,9 @@ fun callbackQuery(userId: Long, data: List<Int>, chatId: Long, messageId: Int? =
             keyboard = InlineKeyboardMarkup().setKeyboard(listOf(
                     listOf(InlineKeyboardButton("Обратно").setCallbackData(arrayToString(data.subList(2, 4).toTypedArray())))))
             val sb = StringBuilder()
-            Main.db.timetable.classNames.forEachIndexed { index, s -> sb.append("/c_").append(index + 1).append(" : ").append(s).append('\n') }
+            bot.db.timetable.classNames.forEachIndexed { index, s -> sb.append("/c_").append(index + 1).append(" : ").append(s).append('\n') }
             text = sb.dropLast(1).toString()
-            Main.db.setUserState(userId, ArrayList(data.subList(2, 4) + listOf(-1, -1, -1, -1, -1, -1)))
+            bot.db.setUserState(userId, ArrayList(data.subList(2, 4) + listOf(-1, -1, -1, -1, -1, -1)))
         }
         else -> text = "Ты действительно думаешь, что это была валидная кнопка?"
     }
