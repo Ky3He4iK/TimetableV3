@@ -1,7 +1,6 @@
 package com.ky3he4ik
 
 import com.google.gson.internal.LinkedTreeMap
-import com.ky3he4ik.Common.log
 
 data class User(val id: Long, var username: String, var firstName: String, var internalId: Int, var lastAccess: Int = 0,
                 var settings: Settings = Settings()) {
@@ -74,7 +73,7 @@ class Database(loadType: Int = LoadType.READ.data) {
         timetable = TimetableBuilder.load(timetableFile) ?: TimetableBuilder.createTimetable()
         feedbackArray = IO.readJSONArray(feedbackFile)
         users = HashMap(IO.readJSON<LinkedTreeMap<Long, User>>(usersFile).toMap())
-        log("Db/loading", "Loaded from local files")
+        LOG.i("Db/loading", "Loaded from local files")
         return true
     }
 
@@ -83,7 +82,7 @@ class Database(loadType: Int = LoadType.READ.data) {
         feedbackArray = ArrayList()
         timetable = TimetableBuilder.createTimetable()
         writeAll()
-        log("Db/creating", "Created&fetched")
+        LOG.i("Db/creating", "Created&fetched")
     }
 
     fun setUserState(userId: Long, newState: List<Int>) {
@@ -154,7 +153,7 @@ class Database(loadType: Int = LoadType.READ.data) {
 
     fun addFeedback(userId: Long, text: String) {
         feedbackArray.add(Feedback(userId, text, feedbackArray.size))
-        Common.sendMessage("FEEDBACK!", chatId = Constants.fatherInd, inlineKeyboard = null)
+        Common.sendMessage(IOParams("FEEDBACK!", chatId = Constants.fatherInd, inlineKeyboard = null))
     }
 
     fun update(fast: Boolean, full: Boolean = true) {
@@ -170,7 +169,7 @@ class Database(loadType: Int = LoadType.READ.data) {
     fun getUser(userId: Long): User? = users[userId]
 
     fun sendToAll(text: String) {
-        users.forEach { _, u -> Common.sendMessage(text, u.id, inlineKeyboard = null) }
+        users.forEach { _, u -> Common.sendMessage(IOParams(text, u.id, inlineKeyboard = null)) }
     }
 
     private fun <E> ArrayList<E>.notEquals(al: ArrayList<E>): Boolean {
@@ -198,8 +197,8 @@ class Database(loadType: Int = LoadType.READ.data) {
                 it.value.settings.typeInd in diffInd) }.keys.forEach {
             val set = getUser(it)!!.settings
             val classInd = if (set.type == Type.CLASS.data) set.typeInd else -1
-            Common.sendMessage(text = "${timetable.changes.getChangesPres(set.defaultPresentationChanges, timetable, classInd)}\n\n" +
-                    "Уведомления об изменениях можно отключить в настройках", silent = true, inlineKeyboard = null, chatId = it)
+            Common.sendMessage(IOParams("${timetable.changes.getChangesPres(set.defaultPresentationChanges, timetable, classInd)}\n\n" +
+                    "Уведомления об изменениях можно отключить в настройках", inlineKeyboard = null, chatId = it), true)
         }
     }
 

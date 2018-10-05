@@ -25,7 +25,4 @@ internal object Constants {
 
     val urlTimetable = URL("http://lyceum.urfu.ru/n/inc/tmtblAjax.php")
     val urlLists = URL("http://lyceum.urfu.ru/n/?p=tmtbl")
-
-    const val logBoundaryOpen = "------LOG PART------"
-    const val logBoundaryClose = "____END LOG PART____"
 }

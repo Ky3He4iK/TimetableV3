@@ -1,6 +1,6 @@
 package com.ky3he4ik
 
-import com.ky3he4ik.Common.log
+import com.ky3he4ik.Timetable.TT.TimetableDay.TimetableLesson.TimetableClass.TimetableCell
 import org.json.JSONObject
 
 object TimetableBuilder {
@@ -65,7 +65,7 @@ object TimetableBuilder {
                 "tmrDay" to (dayInd + 1).toString()
         ), fast)
         if (page == "Err\n")
-            log("TTBuilder/setClass", "Something bad was happened with $classInd at $dayInd")
+            LOG.w("TTBuilder/setClass", "Something bad was happened with $classInd at $dayInd")
         else
             for (lesson in page.substring(page.indexOf("<tr>") + "<tr>".length).split("<tr>"))
                 setClassLesson(timetable, classInd, dayInd, lesson)
@@ -80,17 +80,16 @@ object TimetableBuilder {
             for (it in 1 until tmpArr.size) {
                 val lesData = tmpArr[it].substring(0, tmpArr[it].indexOf("</td>"))
                 if (!lesData.contains("&times"))
-                    timetable.timetable.days[dayInd].lessons[lessonNum].classes[classIndInt].groups.add(
-                            setClassLessonGroup(lesData, it, classIndInt))
+                    timetable.timetable[dayInd, lessonNum, classIndInt].groups.add(setClassLessonGroup(lesData, it, classIndInt))
             }
         } else {
-            timetable.timetable.days[dayInd].lessons[lessonNum].classes[classIndInt].groups.add(setClassLessonGroup(
+            timetable.timetable[dayInd, lessonNum, classIndInt].groups.add(setClassLessonGroup(
                     lessonData.substring(lessonData.indexOf("<td colspan=2>") + "<td colspan=2>".length,
                             lessonData.indexOf("</td></tr>")), 0, classIndInt))
         }
     }
 
-    private fun setClassLessonGroup(lessonData: String, groupInd: Int, classInd: Int): Timetable.TT.TimetableDay.TimetableLesson.TimetableClass.TimetableCell {
+    private fun setClassLessonGroup(lessonData: String, groupInd: Int, classInd: Int): TimetableCell {
         val subject: String
         var roomInd: Int
         if (lessonData.contains(' ')) {
@@ -103,7 +102,7 @@ object TimetableBuilder {
             roomInd = if (lessonData == "Физкультура") defaults[0] else defaults[1]
             subject = lessonData
         }
-        return Timetable.TT.TimetableDay.TimetableLesson.TimetableClass.TimetableCell(classInd, roomInd, defaults[3], arrayListOf(subject), groupInd)
+        return TimetableCell(classInd, roomInd, defaults[3], arrayListOf(subject), groupInd)
     }
 
     private fun setTeachers(timetable: Timetable) {
@@ -121,7 +120,7 @@ object TimetableBuilder {
                 "tmrDay" to "0"
         ), fast)
         if (page == "Err\n")
-            log("TTBuilder/setTeacher", "Something bad was happened with $teacherInd (${timetable.teacherNames[teacherInd]})")
+            LOG.w("TTBuilder/setTeacher", "Something bad was happened with $teacherInd (${timetable.teacherNames[teacherInd]})")
         else if (page.contains("Уроков не найдено"))
             return
         for (dayInfo in page.substring(page.indexOf("<h3>") + "<h3>".length, page.indexOf("<details><summary>")).split("<h3>"))
@@ -150,18 +149,18 @@ object TimetableBuilder {
         val classInd = timetable.findClass(tmpArr[1])
 
         if (dayInd < 0 || lessonNum < 0 || dayInd >= timetable.timetable.days.size ||
-                lessonNum >= timetable.timetable.days[dayInd].lessons.size ||
-                classInd >= timetable.timetable.days[dayInd].lessons[lessonNum].classes.size)
-            log("TTBuilder/setTDS", "Houston, we’ve had a problem ($dayInd $lessonNum $classInd)")
+                lessonNum >= timetable.timetable[dayInd].lessons.size ||
+                classInd >= timetable.timetable[dayInd].lessons[lessonNum].classes.size)
+            LOG.e("TTBuilder/setTDS", "Houston, we’ve had a problem ($dayInd $lessonNum $classInd)")
 
         val groupInd = if (groupNum == 2
-                && timetable.timetable.days[dayInd].lessons[lessonNum].classes[classInd].groups.size != 1) 1 else 0
-        val timetableCell = timetable.getCellByClass(dayInd, lessonNum, classInd, groupInd)
+                && timetable.timetable[dayInd, lessonNum, classInd].groups.size != 1) 1 else 0
+        val timetableCell = timetable.timetable[dayInd, lessonNum, classInd, groupInd]
         timetableCell.teacherInd = teacherInd
         if (!timetableCell.subjects.contains(subject))
             timetableCell.subjects.add(subject)
 
-        timetable.timetable.days[dayInd].lessons[lessonNum].classes[classInd].groups[groupInd] = timetableCell
+        timetable.timetable[dayInd, lessonNum, classInd, groupInd] = timetableCell
     }
 
     private fun getRawChanges(fast: Boolean): String {
@@ -174,7 +173,7 @@ object TimetableBuilder {
                 "tmrDay" to "0"
         ), fast)
         if (page == "Err\n") {
-            log("TTBuilder/getRChanges", "Can't get raw changes")
+            LOG.w("TTBuilder/getRChanges", "Can't get raw changes")
             return ""
         }
         return page.substring(page.indexOf("</summary>") + "</summary>".length)
@@ -250,7 +249,7 @@ object TimetableBuilder {
                             val jo = groups.getJSONObject(it)
                             val subjects = ArrayList<String>()
                             jo.getJSONArray("subjects").forEach { subjects.add(it.toString()) }
-                            timetable.timetable.days[dayInd].lessons[lessonInd].classes[classInd].groups.add(
+                            timetable.timetable[dayInd, lessonInd, classInd].groups.add(
                                     Timetable.TT.TimetableDay.TimetableLesson.TimetableClass.TimetableCell(
                                             classInd = jo.getInt ("classInd"), roomInd = jo.getInt("roomInd"),
                                             teacherInd = jo.getInt("teacherInd"), groupInd = jo.getInt("groupInd"),
@@ -278,13 +277,13 @@ object TimetableBuilder {
             timetable.freeRooms.setAll(timetable)
             return timetable
         } catch (e: NullPointerException) {
-            log("TTBuilder/load", "Wrong JSON format", e)
+            LOG.e("TTBuilder/load", "Wrong JSON format", e)
             return null
         }
     }
 
     fun createTimetable(fast: Boolean = BotConfig.isDebug): Timetable {
-        log("TTBuilder/createTT", "Creating timetable. Smaller IO delay: $fast")
+        LOG.i("TTBuilder/createTT", "Creating timetable. Smaller IO delay: $fast")
         this.fast = fast
         getToken()
         lists = getLists()
@@ -320,7 +319,7 @@ object TimetableBuilder {
         changes.dayInd = getDayByChanges(rawChanges
                 .substring(rawChanges.indexOf("НА ") + "НА ".length))
         if (changes.dayInd == -1) {
-            log("TTBuilder/getChanges", "Changes' day ind is -1!")
+            LOG.w("TTBuilder/getChanges", "Changes' day ind is -1!")
             return changes
         }
         rawChanges = rawChanges.substring(rawChanges.indexOf("</h3>") + "<h3>".length)

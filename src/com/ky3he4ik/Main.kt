@@ -10,7 +10,6 @@ import org.telegram.telegrambots.meta.api.objects.Update
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton
 
-import com.ky3he4ik.Common.log
 import com.ky3he4ik.Common.sendMessage
 
 val bot = Main()
@@ -37,16 +36,17 @@ fun run() {
 
 fun init() {
     try {
+        LOG.logLevel = if (BotConfig.isDebug) LOG.LogLevel.VERBOSE else LOG.LogLevel.INFO
         ApiContextInitializer.init()
         val telegramBotsApi = TelegramBotsApi()
         try {
             telegramBotsApi.registerBot(bot)
         } catch (e: TelegramApiException) {
-            log("Main/init", e.message ?: "Error on init", e)
+            LOG.e("Main/init", e.message ?: "Error on init", e)
 
         }
     } catch (e: Exception) {
-        log("Main/init", e.message ?: "Error on init", e)
+        LOG.e("Main/init", e.message ?: "Error on init", e)
     }
 }
 
@@ -55,8 +55,8 @@ class Main : TelegramLongPollingBot() {
     init {
         setDefaultKeyboard()
         Threads.startDaemonThread("Send thread") { Threads.sendThread(); }
-        log("Main/Main/init", "Started")
-        log("Main/Main/init_test", db.timetable.getTimetable(Type.CLASS.data, db.getClassInd("11е")))
+        LOG.i("Main/Main/init", "Started")
+        LOG.d("Main/Main/init_test", db.timetable.getTimetable(Type.CLASS.data, db.getClassInd("11е")))
     }
 
     override fun getBotUsername(): String = if (BotConfig.isDebug) BotConfig.TestUsername else BotConfig.ReleaseUsername
@@ -71,7 +71,7 @@ class Main : TelegramLongPollingBot() {
                 update.hasCallbackQuery() -> onCallbackQuery(update.callbackQuery)
             }
         } catch (e: Exception) {
-            log("Main/onUpdate", e.message, e)
+            LOG.e("Main/onUpdate", e.message, e)
             try { // I put try..catch into try..catch. Now I can handle exceptions while handling exceptions (if handle == ignore)
                 sendMessage(IOParams(Common.exceptionToString(e), inlineKeyboard = null, emergency = true))
                 val chatId = when {
@@ -89,7 +89,7 @@ class Main : TelegramLongPollingBot() {
     fun sendMessage(mes: MessageToSend) {
         if (mes.text.isEmpty())
             return
-        log("Main/Send_Edit", "Sending...")
+        LOG.v("Main/Send_Edit", "Sending...")
         when {
             mes.text.length > 4094 -> {
                 while (mes.text.length > 4094) {
@@ -114,8 +114,7 @@ class Main : TelegramLongPollingBot() {
                 execute(EditMessageText().setChatId(mes.chatId).enableMarkdown(mes.markdown).setText(mes.text)
                         .setMessageId(mes.messageId).setReplyMarkup(mes.inlineKeyboard))
             else ->
-                log("Main/SendMes", "${Constants.logBoundaryOpen}\n" +
-                        "Unexpected situation: ${mes.chatId} ${mes.action} ${mes.text}\n${Constants.logBoundaryClose}")
+                LOG.e("Main/SendMes", "Unexpected situation: ${mes.chatId} ${mes.action} ${mes.text}")
                 // Unexpected situation. Zero chances to salvation
         }
         Thread.sleep((1000 / 30.0).toLong()) // Avoiding flood limits

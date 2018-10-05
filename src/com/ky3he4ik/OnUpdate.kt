@@ -7,7 +7,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 
 fun onMessage(message: Message) {
     onUserMes(message)
-    Common.log("Main/Message", "Message!")
+    LOG.d("Main/Message", "Message!")
     val cmd = extractCmd(message.text)
     val text: String
     var keyboard: InlineKeyboardMarkup? = Common.defaultKeyboard
@@ -135,9 +135,9 @@ fun onCallbackQuery(callbackQuery: CallbackQuery) {
         bot.db.setUserState(userId, data)
         callbackQuery(userId, data, callbackQuery.message.chatId, callbackQuery.message.messageId, callbackQuery.message.text)
     } catch (e: Exception) {
-        Common.log("Main/onCallback", e.message, e)
-        Common.sendMessage("Я упаль(\n${e.message}", inlineKeyboard = null, emergency = true)
-        Common.sendMessage("Что-то пошло не так, и оно упало", callbackQuery.from.id.toLong(), inlineKeyboard = null)
+        LOG.e("Main/onCallback", e.message, e)
+        Common.sendMessage(IOParams("Я упаль(\n${e.message}", inlineKeyboard = null, emergency = true))
+        Common.sendMessage(IOParams("Что-то пошло не так, и оно упало", callbackQuery.from.id.toLong(), inlineKeyboard = null))
     }
 }
 
@@ -339,10 +339,8 @@ private fun getSettingsKeyboard(): InlineKeyboardMarkup = InlineKeyboardMarkup()
                 button("Свободные кабинеты по умолчанию", arrayOf(6, 4))),
         listOf(button("Назад", arrayOf(2, 0)))))
 
-
 private fun onUserMes(message: Message) 
         = bot.db.updateUserInfo(message.from.id.toLong(), message.from.userName, message.from.firstName, message.date)
-
 
 private fun extractCmd(command: String): String {
     val spaceInd = command.indexOf(' ')

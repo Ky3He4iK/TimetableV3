@@ -6,6 +6,22 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
     class TT(daysCount: Int, lessonsCount: Int, classCount: Int) {
         val days = Array(daysCount) { TimetableDay(lessonsCount, classCount) }
 
+        operator fun get(dayInd: Int, lessonNum: Int, classInd: Int, groupInd: Int): TimetableCell =
+                days[dayInd].lessons[lessonNum].classes[classInd].groups[groupInd]
+
+        operator fun set(dayInd: Int, lessonNum: Int, classInd: Int, groupInd: Int, value: TimetableCell) {
+            days[dayInd].lessons[lessonNum].classes[classInd].groups[groupInd] = value
+        }
+
+        operator fun get(dayInd: Int, lessonNum: Int, classInd: Int): TimetableDay.TimetableLesson.TimetableClass =
+                days[dayInd].lessons[lessonNum].classes[classInd]
+
+        operator fun get(dayInd: Int, lessonNum: Int): TimetableDay.TimetableLesson =
+                days[dayInd].lessons[lessonNum]
+
+        operator fun get(dayInd: Int): TimetableDay =
+                days[dayInd]
+
         class TimetableDay(lessonsCount: Int, classCount: Int) {
             val lessons = Array(lessonsCount) { TimetableLesson(classCount) }
 
@@ -134,7 +150,7 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
                     return timetable.dayNames[dayInd] + ":\n" + answer
                 return "Изменения на ${timetable.dayNames[dayInd]} для ${timetable.classNames[classInd]}:\n$answer"
             } else {
-                Common.sendMessage("$classInd (${timetable.classNames[classInd]}) - класс Шредингера в плане изменений")
+                Common.sendMessage(IOParams("$classInd (${timetable.classNames[classInd]}) - класс Шредингера в плане изменений"))
                 return "Не все идет по плану. Эта ситуация - яркий пример подобного"
             }
         }
@@ -175,9 +191,6 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
     fun findTeacher(teacherName: String): Int = find(teacherNames, teacherName)
 
     fun findClass(className: String): Int = find(classNames, className)
-
-    fun getCellByClass(dayInd: Int, lessonNum: Int, classInd: Int, groupInd: Int): TimetableCell =
-            timetable.days[dayInd].lessons[lessonNum].classes[classInd].groups[groupInd]
 
     fun getTimetable(type: Int, typeInd: Int, dayInd: Int = 7): String {
         var ti = typeInd
