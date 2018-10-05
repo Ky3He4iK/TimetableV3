@@ -160,4 +160,10 @@ class Main : TelegramLongPollingBot() {
         }
         return sb.toString()
     }
+
+    private fun exceptionToString(e: Exception): String {
+        val sb = StringBuilder().appendln(e.message ?: "An undefined error")
+        e.stackTrace.forEach { sb.append("${it.fileName} ${it.className} ${it.methodName} ${it.lineNumber}\n") }
+        return sb.toString()
+    }
 }
