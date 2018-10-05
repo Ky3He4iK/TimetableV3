@@ -36,6 +36,7 @@ fun run() {
 
 fun init() {
     try {
+        Constants.generateBells()
         LOG.logLevel = if (BotConfig.isDebug) LOG.LogLevel.VERBOSE else LOG.LogLevel.INFO
         ApiContextInitializer.init()
         val telegramBotsApi = TelegramBotsApi()
@@ -73,7 +74,7 @@ class Main : TelegramLongPollingBot() {
         } catch (e: Exception) {
             LOG.e("Main/onUpdate", e.message, e)
             try { // I put try..catch into try..catch. Now I can handle exceptions while handling exceptions (if handle == ignore)
-                sendMessage(IOParams(Common.exceptionToString(e), inlineKeyboard = null, emergency = true))
+                sendMessage(IOParams(exceptionToString(e), inlineKeyboard = null, emergency = true))
                 val chatId = when {
                     update?.message?.chatId != null -> update.message.chatId
                     update?.callbackQuery?.message?.chatId != null && update.callbackQuery?.message?.messageId != null ->
