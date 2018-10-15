@@ -21,7 +21,7 @@ internal object IO {
             file.createNewFile()
         if (!file.canWrite())
             throw AccessDeniedException(file)
-        val writer = OutputStreamWriter(FileOutputStream(file, !overwrite)).buffered()
+        val writer = FileOutputStream(file, !overwrite).bufferedWriter()
         writer.write(text)
         writer.flush()
         writer.close()
@@ -76,6 +76,4 @@ internal object IO {
             parametersString.append(it.key).append('=').append(it.value).append("&")
         return get(URL(url.toString() + '?' + parametersString.dropLast(1).toString()), fast)
     }
-
-    fun exists(filename: String): Boolean = File(filename).exists()
 }

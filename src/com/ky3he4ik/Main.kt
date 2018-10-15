@@ -57,7 +57,7 @@ class Main : TelegramLongPollingBot() {
         setDefaultKeyboard()
         Threads.startDaemonThread("Send thread") { Threads.sendThread(); }
         LOG.i("Main/Main/init", "Started")
-        LOG.d("Main/Main/init_test", db.timetable.getTimetable(Type.CLASS.data, db.getClassInd("11е")))
+        LOG.v("Main/Main/init_test", db.timetable.getTimetable(Type.CLASS.data, db.getInd("11е", Type.CLASS.data )))
     }
 
     override fun getBotUsername(): String = if (BotConfig.isDebug) BotConfig.TestUsername else BotConfig.ReleaseUsername

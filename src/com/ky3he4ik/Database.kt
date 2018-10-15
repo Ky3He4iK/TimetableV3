@@ -4,22 +4,26 @@ import com.google.gson.internal.LinkedTreeMap
 
 data class User(val id: Long, var username: String, var firstName: String, var internalId: Int, var lastAccess: Int = 0,
                 var settings: Settings = Settings()) {
+
     data class Settings(var type: Int = Type.CLASS.data, var typeInd: Int = 0, var notify: Boolean = true,
                         var currentState: List<Int> = listOf(2, 0, -1, -1, -1, -1, -1, -1),
                         var defaultPresentation: Int = Presentation.ALL_WEEK.data,
                         var defaultPresentationChanges: Int = Presentation.ALL_CLASSES.data,
                         var defaultPresentationRooms: Int = Presentation.ALL_WEEK.data) {
+
         fun toString(db: Database): String {
-            return "Ты: ${when (type) {
+            val typeName = when (type) {
                 Type.CLASS.data -> "ученик "
                 Type.TEACHER.data -> "преподаватель, "
                 Type.ROOM.data -> "кабинет №"
                 else -> "bug#"
-            }}${if (typeInd >= 0) db.get(type, typeInd) else typeInd.toString()}\n${if (notify) "П" else "Не п"}" +
+            }
+            val typeIndStr = if (typeInd >= 0) db.get(type, typeInd) else typeInd.toString()
+            return "Ты: $typeName}$typeIndStr\n${if (notify) "П" else "Не п"}" +
                     "олучаешь увебомления об изменениях\nВывод по умолчанию:\n- Расписание: " +
                     "${presentationToString(defaultPresentation)}\n- Изменения: " +
                     "${presentationToString(defaultPresentationChanges)}\n- Свободные кабинеты: " +
-                    "${presentationToString(defaultPresentationRooms)}\nВыбирай, что хочешь изменить"
+                    "${presentationToString(defaultPresentationRooms)}\nВыбирай, что хочешь изменить:"
         }
 
         private fun presentationToString(presentation: Int): String {
@@ -54,27 +58,27 @@ class Database(loadType: Int = LoadType.READ.data) {
     lateinit var feedbackArray: ArrayList<Feedback>
 
     init {
-        var lT = loadType
-        if (lT == LoadType.READ.data && (!IO.exists(timetableFile) || !IO.exists(usersFile) || !IO.exists(feedbackFile)))
-            lT = LoadType.CREATE.data
-        when (lT) {
-            LoadType.READ.data -> {
-                if (!load())
-                    create()
-            }
-            LoadType.CREATE.data ->
-                create()
+        when (loadType) {
+            LoadType.READ.data -> load(true)
+            LoadType.CREATE.data -> create()
             else -> throw RuntimeException("$loadType is not supported")
         }
         Threads.startDaemonThread("Updating thread") { Threads.updatingThread() }
     }
 
-    private fun load(): Boolean {
-        timetable = TimetableBuilder.load(timetableFile) ?: TimetableBuilder.createTimetable()
-        feedbackArray = IO.readJSONArray(feedbackFile)
-        users = HashMap(IO.readJSON<LinkedTreeMap<Long, User>>(usersFile).toMap())
-        LOG.i("Db/loading", "Loaded from local files")
-        return true
+    private fun load(createAtFallback: Boolean = false): Boolean {
+        return try {
+            timetable = TimetableBuilder.load(timetableFile)!!
+            feedbackArray = IO.readJSONArray(feedbackFile)
+            users = HashMap(IO.readJSON<LinkedTreeMap<Long, User>>(usersFile).toMap())
+            LOG.i("Db/loading", "Loaded from local files")
+            true
+        } catch (e: Exception) {
+            LOG.e("Db/loading", "Failed to load from disk", e)
+            if (createAtFallback)
+                create()
+            false
+        }
     }
 
     private fun create() {
@@ -92,19 +96,20 @@ class Database(loadType: Int = LoadType.READ.data) {
     fun hasUser(userId: Long): Boolean = users.containsKey(userId)
 
     fun updateUserSettings(userId: Long, type: Int, typeInd: Int): String {
-        if (typeInd == -1)
+        if (typeInd == -1 || !hasUser(userId))
             return "Я не могу тебя узнать. Может еще разок?"
         val oldValues = Pair(users[userId]!!.settings.type, users[userId]!!.settings.typeInd)
-        users[userId]!!.reSet(type,typeInd)
+        users[userId]?.reSet(type,typeInd)
         return when (type) {
-            Type.CLASS.data -> if (timetable.classNames[typeInd] == "11е") "Добро пожаловать в 11е"
-                else "Теперь ты учишься в ${timetable.classNames[typeInd]}"
-            Type.TEACHER.data ->
-                "Теперь Вы - представитель почётной проффессии - педагог ${timetable.teacherNames[typeInd]}"
-            Type.ROOM.data ->  "Теперь ты - представитель в телеграмме комнаты №${timetable.roomInd[typeInd]}"
+            Type.CLASS.data -> if (timetable.classNames[typeInd] == "11е")
+                "Добро пожаловать в 11е"
+            else
+                "Теперь ты учишься в ${get(type, typeInd)}"
+            Type.TEACHER.data -> "Теперь Вы - представитель почётной проффессии - педагог ${get(type, typeInd)}"
+            Type.ROOM.data ->  "Теперь ты - представитель в телеграмме комнаты №${get(type, typeInd)}"
             //TODO: replace by room names
             else -> {
-                users[userId]!!.reSet(oldValues.first, oldValues.second)
+                users[userId]?.reSet(oldValues.first, oldValues.second)
                 "Что-то я таких не знаю"
             }
         }
@@ -128,7 +133,7 @@ class Database(loadType: Int = LoadType.READ.data) {
 
     fun removeFeedback(feedbackInd: Int) {
         if (feedbackInd < 0 || feedbackInd >= feedbackArray.size)
-            throw RuntimeException("$feedbackInd does not match")
+            throw IndexOutOfBoundsException("$feedbackInd does not match")
         feedbackArray.removeAt(feedbackInd)
         for (it in 0 until feedbackArray.size)
             feedbackArray[it].internalId = it
@@ -153,7 +158,7 @@ class Database(loadType: Int = LoadType.READ.data) {
 
     fun addFeedback(userId: Long, text: String) {
         feedbackArray.add(Feedback(userId, text, feedbackArray.size))
-        Common.sendMessage(IOParams("FEEDBACK!", chatId = Constants.fatherInd, inlineKeyboard = null))
+        Common.sendMessage(IOParams("FEEDBACK!", inlineKeyboard = null))
     }
 
     fun update(fast: Boolean, full: Boolean = true) {
@@ -169,40 +174,41 @@ class Database(loadType: Int = LoadType.READ.data) {
     fun getUser(userId: Long): User? = users[userId]
 
     fun sendToAll(text: String) {
-        users.forEach { _, u -> Common.sendMessage(IOParams(text, u.id, inlineKeyboard = null)) }
+        users.values.forEach { u -> Common.sendMessage(IOParams(text, u.id, inlineKeyboard = null)) }
     }
 
-    private fun <E> ArrayList<E>.notEquals(al: ArrayList<E>): Boolean {
-        if (al.size != size)
-            return false
-        forEachIndexed { index, e -> if (e != al[index]) return false }
-        return true
+    fun addUser(userId: Long, username: String, firstName: String, lastAccess: Int) {
+        users[userId] = User(userId, username, firstName, users.size, lastAccess)
     }
 
     private fun notifyChanges(oldChanges: Timetable.Changes, newChanges: Timetable.Changes) {
-        if (newChanges.dayInd == -1 || newChanges.dayInd == 7)
+        if (newChanges.dayInd !in 0..5)
             return
-        var diffInd = HashSet<Int>().toMutableSet()
-        if (oldChanges.dayInd != newChanges.dayInd || oldChanges.dayInd !in 0..5)
-            diffInd = newChanges.changeIndexes.keys
-        else {
-            newChanges.changes.forEach {
-                if (it.classInd == -1 || !oldChanges.hasChanges[it.classInd] || oldChanges.changes[oldChanges.changeIndexes[it.classInd]!!].changeData.notEquals(it.changeData))
-                    diffInd.add(it.classInd)
-            }
+        val difference = newChanges.difference(oldChanges)
+        if (difference.isEmpty())
+            return
+        val diffInd = HashSet<Int>(difference.size)
+        for (it in difference)
+            diffInd.add(it.classInd)
+        val condition: ((Map.Entry<Long, User>) -> Boolean) = {
+            it.value.settings.notify && (it.value.settings.type != Type.CLASS.data || it.value.settings.typeInd in diffInd)
         }
-        if (diffInd.isEmpty())
-            return
-        users.filter { it.value.settings.notify && (it.value.settings.type != Type.CLASS.data ||
-                it.value.settings.typeInd in diffInd) }.keys.forEach {
-            val set = getUser(it)!!.settings
-            val classInd = if (set.type == Type.CLASS.data) set.typeInd else -1
-            Common.sendMessage(IOParams("${timetable.changes.getChangesPres(set.defaultPresentationChanges, timetable, classInd)}\n\n" +
-                    "Уведомления об изменениях можно отключить в настройках", inlineKeyboard = null, chatId = it), true)
+        users.filter(condition).forEach {
+            val settings = it.value.settings
+            val classInd = if (settings.type == Type.CLASS.data)
+                    settings.typeInd
+                else
+                    -1
+            val mes = newChanges.getChangesPres(settings.defaultPresentationChanges, timetable, classInd) +
+                    "\n\nУведомления об изменениях можно отключить в настройках"
+            Common.sendMessage(IOParams(mes, inlineKeyboard = null, chatId = it.key), true)
         }
     }
 
-    private fun findInArray(string: String, array: ArrayList<String>): Int {
+    private fun getSomethingInd(string: String, array: ArrayList<String>): Int {
+        val ind = string.toIntOrNull()
+        if (ind != null && ind in 0 until array.size)
+            return ind
         var res = array.indexOf(string)
         if (res != -1)
             return res
@@ -212,12 +218,6 @@ class Database(loadType: Int = LoadType.READ.data) {
             if (res <= array[it].length && array[it].substring(0, res).toLowerCase() == stringLower)
                 return it
         return -1
-    }
-
-    private fun getSomethingInd(string: String, array: ArrayList<String>): Int {
-        val ind = string.toIntOrNull()
-        return if (ind == null || ind < 0 || ind >= array.size) findInArray(string, array)
-        else ind
     }
 
     private fun getDayInd(day: String): Int {
@@ -230,11 +230,7 @@ class Database(loadType: Int = LoadType.READ.data) {
         return if (ind == -1) getSomethingInd(room, timetable.roomInd) else ind
     }
 
-    fun getClassInd(classStr: String): Int = getSomethingInd(classStr, timetable.classNames)
+    private fun getClassInd(classStr: String): Int = getSomethingInd(classStr, timetable.classNames)
 
     private fun getTeacherInd(teacher: String): Int = getSomethingInd(teacher, timetable.teacherNames)
-
-    fun addUser(userId: Long, username: String, firstName: String, lastAccess: Int) {
-        users[userId] = User(userId, username, firstName, users.size, lastAccess)
-    }
 }
