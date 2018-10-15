@@ -1,6 +1,7 @@
 package com.ky3he4ik
 
 import com.google.gson.internal.LinkedTreeMap
+import java.io.File
 
 data class User(val id: Long, var username: String, var firstName: String, var internalId: Int, var lastAccess: Int = 0,
                 var settings: Settings = Settings()) {
@@ -49,9 +50,10 @@ data class Feedback(val userId: Long, val text: String, var internalId: Int,
                     var condition: Int = FeedbackType.UNREAD.data)
 
 class Database(loadType: Int = LoadType.READ.data) {
-    private val timetableFile = "data/timetable.bv3.json"
-    private val feedbackFile = "data/feedback.bv3.json"
-    private val usersFile = "data/users.bv3.json"
+    private val filesDir = "data"
+    private val timetableFile = "timetable.bv3.json"
+    private val feedbackFile = "feedback.bv3.json"
+    private val usersFile = "users.bv3.json"
 
     private lateinit var users: HashMap<Long, User>
     lateinit var timetable: Timetable
@@ -67,25 +69,34 @@ class Database(loadType: Int = LoadType.READ.data) {
     }
 
     private fun load(createAtFallback: Boolean = false): Boolean {
-        return try {
-            timetable = TimetableBuilder.load(timetableFile)!!
-            feedbackArray = IO.readJSONArray(feedbackFile)
-            users = HashMap(IO.readJSON<LinkedTreeMap<Long, User>>(usersFile).toMap())
+        try {
+            timetable = TimetableBuilder.load(getFilename(filesDir, timetableFile))!!
+            feedbackArray = IO.readJSONArray(getFilename(filesDir, feedbackFile))
+            users = HashMap(IO.readJSON<LinkedTreeMap<Long, User>>(getFilename(filesDir, usersFile)).toMap())
             LOG.i("Db/loading", "Loaded from local files")
-            true
+            return true
         } catch (e: Exception) {
             LOG.e("Db/loading", "Failed to load from disk", e)
-            if (createAtFallback)
-                create()
-            false
         }
+        try {
+            LOG.w("Db/loading/fromBkp", "NOT IMPLEMENTED. Just skipping")
+//            TODO: implement
+//            return true
+        } catch (e: Exception) {
+            LOG.e("Db/loading", "Failed to load from disk", e)
+        }
+
+
+        if (createAtFallback)
+            create()
+        return false
     }
 
     private fun create() {
         users = HashMap()
         feedbackArray = ArrayList()
         timetable = TimetableBuilder.createTimetable()
-        writeAll()
+        writeBkp()
         LOG.i("Db/creating", "Created&fetched")
     }
 
@@ -150,10 +161,18 @@ class Database(loadType: Int = LoadType.READ.data) {
             addUser(userId, username, firstName, lastAccess)
     }
 
+    fun writeBkp() {
+        val cTime = Common.getCurrTime() + '_'
+        IO.writeJSON(getFilename(filesDir, cTime + timetableFile), timetable)
+        IO.writeJSON(getFilename(filesDir, cTime + feedbackFile), feedbackArray)
+        IO.writeJSON(getFilename(filesDir, cTime + usersFile), users)
+        LOG.v("Db/writeBkp", "Wrote to $filesDir/$cTime")
+    }
+
     fun writeAll() {
-        IO.writeJSON(timetableFile, timetable)
-        IO.writeJSON(feedbackFile, feedbackArray)
-        IO.writeJSON(usersFile, users)
+        IO.writeJSON(getFilename(filesDir, timetableFile), timetable)
+        IO.writeJSON(getFilename(filesDir, feedbackFile), feedbackArray)
+        IO.writeJSON(getFilename(filesDir, usersFile), users)
     }
 
     fun addFeedback(userId: Long, text: String) {
@@ -167,7 +186,7 @@ class Database(loadType: Int = LoadType.READ.data) {
             timetable = TimetableBuilder.createTimetable(fast)
         else
             timetable.changes = TimetableBuilder.getChanges(timetable, fast)
-        writeAll()
+        writeBkp()
         notifyChanges(oldChanges, timetable.changes)
     }
 
@@ -233,4 +252,6 @@ class Database(loadType: Int = LoadType.READ.data) {
     private fun getClassInd(classStr: String): Int = getSomethingInd(classStr, timetable.classNames)
 
     private fun getTeacherInd(teacher: String): Int = getSomethingInd(teacher, timetable.teacherNames)
+
+    private fun getFilename(folder: String, file: String): String = folder + File.separator + file
 }

@@ -17,22 +17,17 @@ val bot = Main()
 fun main(args: Array<String>) {
     Threads.startDaemonThread("Time thread") { Threads.timeThread(); }
     BotConfig.isDebug = args.isNotEmpty()
-    BotConfig.isOffline = true
 
     //TODO: set log level from args
-    if (BotConfig.isOffline)
-        while (true)
-            bot.onCLImes(readLine() ?: return)
-    else {
-        init()
-        run()
-    }
+
+    init()
+    run()
 }
 
 fun run() {
     while (Common.work)
         Thread.sleep(1000)
-    bot.db.writeAll()
+    bot.db.writeBkp()
 }
 
 fun init() {
@@ -53,7 +48,7 @@ fun init() {
 }
 
 class Main : TelegramLongPollingBot() {
-    var db = Database(if (BotConfig.isOffline) LoadType.READ.data else LoadType.CREATE.data)
+    var db = Database(LoadType.READ.data)
     init {
         setDefaultKeyboard()
         Threads.startDaemonThread("Send thread") { Threads.sendThread(); }
@@ -103,8 +98,6 @@ class Main : TelegramLongPollingBot() {
                 }
                 sendMessage(mes)
             }
-            BotConfig.isOffline -> println("${mes.action} to ${mes.chatId}. is markdown: ${mes.markdown}. is silent: " +
-                    "${mes.silent}\n${mes.text}\n${kbdToStr(mes.inlineKeyboard)}")
             mes.action == TelegramAction.SEND -> {
                 val msg = SendMessage().setChatId(mes.chatId).enableMarkdown(mes.markdown).setText(mes.text)
                         .setReplyMarkup(mes.inlineKeyboard)
@@ -120,13 +113,6 @@ class Main : TelegramLongPollingBot() {
                 // Unexpected situation. Zero chances to salvation
         }
         Thread.sleep((1000 / 30.0).toLong()) // Avoiding flood limits
-    }
-
-    fun onCLImes(message: String) {
-        //TODO: add processing as message
-        val data = message.split('.').map(String::toInt)
-        db.setUserState(-1, data)
-        callbackQuery(-1, data, -1, messageText = message)
     }
 
     private fun setDefaultKeyboard() {
@@ -148,19 +134,6 @@ class Main : TelegramLongPollingBot() {
         if (endPos < 3800)
             endPos = 4094
         return endPos
-    }
-
-    private fun kbdToStr(kdb: InlineKeyboardMarkup?): String? {
-        if (kdb == null)
-            return null
-        val sb = StringBuilder()
-        for (row in kdb.keyboard) {
-            sb.append("{ ")
-            for (button in row)
-                sb.append(button.text).append(" [").append(button.callbackData).append("]; ")
-            sb.append("}\n")
-        }
-        return sb.toString()
     }
 
     private fun exceptionToString(e: Exception): String {

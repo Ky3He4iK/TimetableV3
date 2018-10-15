@@ -1,8 +1,8 @@
 package com.ky3he4ik
 
 internal object LOG {
-    const val logBoundaryOpen = "------LOG PART------"
-    const val logBoundaryClose = "____END LOG PART____"
+    private const val logBoundaryOpen = "------LOG PART------"
+    private const val logBoundaryClose = "____END LOG PART____"
 
     enum class LogLevel(val lvl: Int) {
         VERBOSE(0),
@@ -21,6 +21,7 @@ internal object LOG {
         Thread.sleep(10)
         println("\n$logBoundaryClose")
         //TODO: timestamp in logs
+        //TODO: colored messages
     }
 
     fun e(tag: String, message: String) = write(tag, message, LogLevel.ERROR)

@@ -1,6 +1,7 @@
 package com.ky3he4ik
 
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
+import java.text.SimpleDateFormat
 import java.util.*
 
 
@@ -41,4 +42,6 @@ internal object Common {
         else
             messageQueue.add(mes)
     }
+
+    fun getCurrTime(): String = SimpleDateFormat("yyyy-MM-dd_hh-mm-ss").format(Date())
 }
