@@ -19,6 +19,7 @@ fun main(args: Array<String>) {
     BotConfig.isDebug = args.isNotEmpty()
     BotConfig.isOffline = true
 
+    //TODO: set log level from args
     if (BotConfig.isOffline)
         while (true)
             bot.onCLImes(readLine() ?: return)

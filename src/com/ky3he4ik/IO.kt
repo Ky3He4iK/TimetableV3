@@ -9,18 +9,27 @@ import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 
 internal object IO {
+    private fun checkFile(file: File, create: Boolean = false) {
+        if (!file.exists()) {
+            if (create)
+                file.createNewFile()
+            else
+                throw AccessDeniedException(file)
+        }
+        if (!file.canWrite())
+            throw AccessDeniedException(file)
+    }
+
     private fun write(filename: String, text: String, overwrite: Boolean = true) {
         val directories = filename.split(File.separator)
-        directories.dropLast(1).forEach { val file = File(it)
+        directories.dropLast(1).forEach {
+            val file = File(it)
             if (!file.exists())
                 file.mkdir()
         }
 
         val file = File(filename)
-        if (!file.exists())
-            file.createNewFile()
-        if (!file.canWrite())
-            throw AccessDeniedException(file)
+        checkFile(file, true)
         val writer = FileOutputStream(file, !overwrite).bufferedWriter()
         writer.write(text)
         writer.flush()
@@ -29,43 +38,32 @@ internal object IO {
 
     fun read(filename: String) : String {
         val file = File(filename)
-        if (!file.exists())
-            throw FileNotFoundException("$filename does not exists")
-        if (!file.canRead())
-            throw AccessDeniedException(file)
+        checkFile(file)
         return file.readText()
     }
 
-    fun <T> readJSON(filename: String) : T {
-        return Gson().fromJson<T>(read(filename), object : TypeToken<T>() {}.type)
-    }
+    fun <T> readJSON(filename: String) : T =
+            Gson().fromJson<T>(read(filename), object : TypeToken<T>() {}.type)
 
-    inline fun <reified T> readJSONArray(filename: String) : T {
-        return Gson().fromJson<T>(read(filename), object : TypeToken<T>() {}.type)
-    }
+    inline fun <reified T> readJSONArray(filename: String) : T =
+            Gson().fromJson<T>(read(filename), object : TypeToken<T>() {}.type)
 
-    fun <T> writeJSON(filename: String, t: T, overwrite: Boolean = true) {
-        write(filename, GsonBuilder().setPrettyPrinting().create().toJson(t), overwrite)
-    }
+    fun <T> writeJSON(filename: String, t: T, overwrite: Boolean = true) =
+            write(filename, GsonBuilder().setPrettyPrinting().create().toJson(t), overwrite)
 
     fun get(url: URL, fast: Boolean = false) : String {
         with(url.openConnection() as HttpURLConnection) {
-            setRequestProperty("User-agent", "Bot")
-            //Mozilla/5.0 (X11; Fedora; Linux x86_64; rv:61.0) Gecko/20100101 Firefox/61.0
-            // optional default is GET
+            setRequestProperty("User-agent", BotConfig.userAgent)
             requestMethod = "GET"
             BufferedReader(InputStreamReader(inputStream, "windows-1251")).use {
-                if (responseCode != 200)
+                if (responseCode != 200) {
+                    LOG.e("IO/get", "GET $url: $responseCode\n${it.readText()}")
                     throw IOException("Response code is $responseCode ($responseMessage), not 200 on URL $url")
-                val response = StringBuffer()
-                var inputLine = it.readLine()
-
-                while (inputLine != null) {
-                    response.append(inputLine)
-                    inputLine = it.readLine()
                 }
-                Thread.sleep(if (fast) 100 else 1000) //TODO: reduce
-                return response.toString()
+
+                // Big pause to reduce server's load
+                Thread.sleep(if (fast) 100 else 1000)
+                return it.readText()
             }
         }
     }
@@ -73,7 +71,7 @@ internal object IO {
     fun get(url: URL, parameters: Map <String, String>, fast: Boolean = false) : String {
         val parametersString = StringBuilder()
         for (it in parameters)
-            parametersString.append(it.key).append('=').append(it.value).append("&")
+            parametersString.append("${it.key}=${it.value}&")
         return get(URL(url.toString() + '?' + parametersString.dropLast(1).toString()), fast)
     }
 }
