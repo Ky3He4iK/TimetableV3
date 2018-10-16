@@ -200,6 +200,13 @@ class Database(loadType: Int = LoadType.READ.data) {
         users[userId] = User(userId, username, firstName, users.size, lastAccess)
     }
 
+    fun listUsers(): String {
+        val res = StringBuilder()
+        for (entry in users)
+            res.append("${entry.key}: @${entry.value.username} ${entry.value.firstName}\n")
+        return res.dropLast(1).toString()
+    }
+
     private fun notifyChanges(oldChanges: Timetable.Changes, newChanges: Timetable.Changes) {
         if (newChanges.dayInd !in 0..5)
             return

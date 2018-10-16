@@ -81,9 +81,10 @@ fun onMessage(message: Message) {
                         text = "OK"
                     }
                 }
+                compareCommand(cmd, "sudoUsers") -> text = bot.db.listUsers()
                 else -> text = "/sudoUpdate [any]\n/sudoUpdateSlow [any]\n/sudoWrite\n/sudoGet\n" +
                         "/sudoAns <id> <text> - ans to feedback\n/sudoSay <id> <text> - say by id\n" +
-                        "/sudoSend <text> - send to all\n/sudoStop"
+                        "/sudoSend <text> - send to all\n/sudoStop\n/sudoUsers"
             }
             keyboard = null
         }
@@ -355,7 +356,8 @@ private fun addUser(message: Message) =
 
 private fun isAdmin(userId: Long): Boolean = userId == Constants.fatherInd
 
-private fun button(text: String = "Назад", callback: Array<Int> = arrayOf(2, 0)) = InlineKeyboardButton(text).setCallbackData(arrayToString(callback))
+fun button(text: String = "Назад", callback: Array<Int> = arrayOf(2, 0)): InlineKeyboardButton
+        = InlineKeyboardButton(text).setCallbackData(arrayToString(callback))
 
 private fun normalize(value: Int, threshold: Int, newVal: Int): Int {
     if (value != threshold)

@@ -3,23 +3,20 @@ package com.ky3he4ik
 import org.telegram.telegrambots.ApiContextInitializer
 import org.telegram.telegrambots.bots.TelegramLongPollingBot
 import org.telegram.telegrambots.meta.TelegramBotsApi
-import org.telegram.telegrambots.meta.exceptions.TelegramApiException
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText
 import org.telegram.telegrambots.meta.api.objects.Update
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton
 
 import com.ky3he4ik.Common.sendMessage
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException
 
 val bot = Main()
 
 fun main(args: Array<String>) {
     Threads.startDaemonThread("Time thread") { Threads.timeThread(); }
     BotConfig.isDebug = args.isNotEmpty()
-
-    //TODO: set log level from args
-
+    LOG.logLevel = LOG.LogLevel.VERBOSE //TODO: set log level from args
     init()
     run()
 }
@@ -27,23 +24,16 @@ fun main(args: Array<String>) {
 fun run() {
     while (Common.work)
         Thread.sleep(1000)
-    bot.db.writeBkp()
+    bot.db.writeAll()
 }
 
 fun init() {
     try {
         Constants.generateBells()
-        LOG.logLevel = if (BotConfig.isDebug) LOG.LogLevel.VERBOSE else LOG.LogLevel.INFO
         ApiContextInitializer.init()
-        val telegramBotsApi = TelegramBotsApi()
-        try {
-            telegramBotsApi.registerBot(bot)
-        } catch (e: TelegramApiException) {
-            LOG.e("Main/init", e.message ?: "Error on init", e)
-
-        }
+        TelegramBotsApi().registerBot(bot)
     } catch (e: Exception) {
-        LOG.e("Main/init", e.message ?: "Error on init", e)
+        LOG.e("Main/init", e.message ?: "Error on init 2", e)
     }
 }
 
@@ -66,10 +56,11 @@ class Main : TelegramLongPollingBot() {
                 update == null -> return
                 update.hasMessage() && update.message.hasText() -> onMessage(update.message)
                 update.hasCallbackQuery() -> onCallbackQuery(update.callbackQuery)
+                //TODO: add checking for stop and add/remove to group
             }
         } catch (e: Exception) {
             LOG.e("Main/onUpdate", e.message, e)
-            try { // I put try..catch into try..catch. Now I can handle exceptions while handling exceptions (if handle == ignore)
+            try {
                 sendMessage(IOParams(exceptionToString(e), inlineKeyboard = null, emergency = true))
                 val chatId = when {
                     update?.message?.chatId != null -> update.message.chatId
@@ -77,52 +68,50 @@ class Main : TelegramLongPollingBot() {
                         update.callbackQuery.message.chatId
                     else -> return
                 }
-                sendMessage(IOParams("Я упаль пытаясь обработать этот запрос =(", chatId = chatId, inlineKeyboard = null, emergency = true))
+                sendMessage(IOParams("Я упаль пытаясь обработать этот запрос =(", chatId = chatId,
+                        inlineKeyboard = null, emergency = true))
             } catch (e: Exception) { /* On a server, no one can hear you crash */ }
         }
-        //TODO: add checking for stop and add/remove to group
     }
 
     fun sendMessage(mes: MessageToSend) {
         if (mes.text.isEmpty())
             return
-        LOG.v("Main/Send_Edit", "Sending...")
-        when {
-            mes.text.length > 4094 -> {
-                while (mes.text.length > 4094) {
-                    val tearThere = findLastSeparator(mes.text)
-                    val text = mes.text
-                    mes.text = text.substring(0, tearThere)
-                    sendMessage(mes)
-                    mes.text = text.substring(tearThere)
-                }
+        LOG.v("Main/Send_Edit", "Sending to ${mes.chatId}...")
+        try {
+            while (mes.text.length > 4094) {
+                val tearThere = findLastSeparator(mes.text)
+                val text = mes.text
+                mes.text = text.substring(0, tearThere)
                 sendMessage(mes)
+                mes.text = text.substring(tearThere)
             }
-            mes.action == TelegramAction.SEND -> {
-                val msg = SendMessage().setChatId(mes.chatId).enableMarkdown(mes.markdown).setText(mes.text)
-                        .setReplyMarkup(mes.inlineKeyboard)
-                if (mes.silent)
-                    msg.disableNotification()
-                execute(msg)
+            when (mes.action) {
+                TelegramAction.SEND -> {
+                    val msg = SendMessage().setChatId(mes.chatId).enableMarkdown(mes.markdown).setText(mes.text)
+                            .setReplyMarkup(mes.inlineKeyboard)
+                    if (mes.silent)
+                        msg.disableNotification()
+                    execute(msg)
+                }
+                TelegramAction.EDIT ->
+                    execute(EditMessageText().setChatId(mes.chatId).enableMarkdown(mes.markdown).setText(mes.text)
+                            .setMessageId(mes.messageId).setReplyMarkup(mes.inlineKeyboard))
             }
-            mes.action == TelegramAction.EDIT ->
-                execute(EditMessageText().setChatId(mes.chatId).enableMarkdown(mes.markdown).setText(mes.text)
-                        .setMessageId(mes.messageId).setReplyMarkup(mes.inlineKeyboard))
-            else ->
-                LOG.e("Main/SendMes", "Unexpected situation: ${mes.chatId} ${mes.action} ${mes.text}")
-                // Unexpected situation. Zero chances to salvation
+        } catch (e: TelegramApiException) {
+            LOG.e("Main/send", e.message, e)
         }
         Thread.sleep((1000 / 30.0).toLong()) // Avoiding flood limits
     }
 
     private fun setDefaultKeyboard() {
         Common.defaultKeyboard = InlineKeyboardMarkup().setKeyboard(listOf(
-                listOf(InlineKeyboardButton("Расписание").setCallbackData("3.0.-1.-1.-1.-1.-1.-1"),
-                        InlineKeyboardButton("Изменения").setCallbackData("4.0.-1.-1.-1.-1.-1.-1"),
-                        InlineKeyboardButton("Свободные").setCallbackData("5.0.-1.-1.-1.-1.-1.-1")),
-                listOf(InlineKeyboardButton("Звонки").setCallbackData("2.1.-1.-1.-1.-1.-1.-1"),
-                        InlineKeyboardButton("Настройки").setCallbackData("6.0.-1.-1.-1.-1.-1.-1"),
-                        InlineKeyboardButton("Прочее").setCallbackData("7.0.-1.-1.-1.-1.-1.-1"))
+                listOf(button("Расписание", arrayOf(3, 0)),
+                        button("Изменения", arrayOf(4, 0)),
+                        button("Свободные", arrayOf(5, 0))),
+                listOf(button("Звонки", arrayOf(2, 1)),
+                        button("Настройки", arrayOf(6, 0)),
+                        button("Прочее", arrayOf(7, 0)))
         ))
     }
 
