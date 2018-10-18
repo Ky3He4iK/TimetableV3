@@ -68,7 +68,7 @@ internal object IO {
         }
     }
 
-    fun get(url: URL, parameters: Map <String, String>, fast: Boolean = false) : String {
+    fun get(url: URL, parameters: Map <Any, Any>, fast: Boolean = false) : String {
         val parametersString = StringBuilder()
         for (it in parameters)
             parametersString.append("${it.key}=${it.value}&")

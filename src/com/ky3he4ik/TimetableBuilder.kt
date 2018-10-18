@@ -5,9 +5,15 @@ import org.json.JSONObject
 
 object TimetableBuilder {
     /* Loading from site */
+    private const val ClassesLisInd = 0
+    private const val TeachersListInd = 1
+    private const val RoomsListInd = 2
+    private const val DaysListInd = 3
+    private const val quote = '"'
+
     private var fast = false
     private var token = ""
-    private var lists = HashMap<String, ArrayList<ListObject>>()
+    private var lists = HashMap<Int, ArrayList<ListObject>>()
     private var defaults = ArrayList<Int>(4)
 
     private data class ListObject(val index: String, val name: String)
@@ -18,19 +24,20 @@ object TimetableBuilder {
         token = page.substring(0, page.indexOf("\"</script>"))
     }
 
-    private fun getLists(): HashMap<String, ArrayList<ListObject>> {
-        val answer = HashMap<String, ArrayList<ListObject>>()
+    private fun getLists(): HashMap<Int, ArrayList<ListObject>> {
+        val answer = HashMap<Int, ArrayList<ListObject>>()
 
         val page = IO.get(Constants.urlLists, fast)
-        val array = page.substring(page.indexOf("<div class=\"tmtbl\""), page.indexOf("<script>var tmToken=")).split("tmtbl")
-        answer[Constants.ClassesListName] = getListsSub(array[3])
-        answer[Constants.TeachersListName] = getListsSub(array[4])
+        val array = page.substring(page.indexOf("<div class=\"tmtbl\""), 
+                page.indexOf("<script>var tmToken=")).split("tmtbl")
+        answer[ClassesLisInd] = getListsSub(array[3])
+        answer[TeachersListInd] = getListsSub(array[4])
 
         val tmpStr = array[5].substring(0, array[5].lastIndexOf("</option>") + "</option>".length) +
-                "<option value='${'F'}'>${"Каф. ин. яз"}</option><option value='${'T'}'>${"ACCESS DENIED"}</option>"
+                "<option value=${quote}F$quote>Каф. ин. яз</option><option value=${quote}T$quote>ACCESS DENIED</option>"
 
-        answer[Constants.RoomsListName] = getListsSub(tmpStr)
-        answer[Constants.DaysListName] = getListsSub(array[6], true)
+        answer[RoomsListInd] = getListsSub(tmpStr)
+        answer[DaysListInd] = getListsSub(array[6], true)
         return answer
     }
 
@@ -38,21 +45,22 @@ object TimetableBuilder {
         val answer = ArrayList<ListObject>()
         val arr = string.split("</option>").dropLast(1)
         for (it in arr) {
-            val tmp = it.substring(it.indexOf("value='") + "value='".length)
-            val tmpI = tmp.substring(0, tmp.indexOf("'"))
+            val tmp = it.substring(it.indexOf("value=$quote") + "value=$quote".length)
+            val tmpI = tmp.substring(0, tmp.indexOf(quote))
             answer.add(ListObject(tmpI, it.substring(it.lastIndexOf(">") + 1)))
         }
         if (sortByInd)
-            answer.sortBy { it.index }
+            answer.sortBy(ListObject::index)
         else
-            answer.sortBy { it.name }
+            answer.sortBy(ListObject::name)
         return answer
     }
 
     private fun setClasses(timetable: Timetable) {
-        for (it in 0 until lists[Constants.ClassesListName]!!.size)
+        lists[ClassesLisInd]?.forEachIndexed {index, it ->
             for (day in 0 until 6)
-                setClass(timetable, it, lists[Constants.ClassesListName]!![it].index, day)
+                setClass(timetable, index, it.index, day)
+        }
     }
 
     private fun setClass(timetable: Timetable, classInd: Int, classYear: String, dayInd: Int) {
@@ -62,7 +70,7 @@ object TimetableBuilder {
                 "tmrClass" to classYear,
                 "tmrTeach" to "0",
                 "tmrRoom" to "0",
-                "tmrDay" to (dayInd + 1).toString()
+                "tmrDay" to dayInd + 1
         ), fast)
         if (page == "Err\n")
             LOG.w("TTBuilder/setClass", "Something bad was happened with $classInd at $dayInd")
@@ -94,7 +102,7 @@ object TimetableBuilder {
         var roomInd: Int
         if (lessonData.contains(' ')) {
             val tmpArr = lessonData.split(' ')
-            roomInd = findInd(lists[Constants.RoomsListName]!!, tmpArr[1])
+            roomInd = findInd(lists[RoomsListInd]!!, tmpArr[1])
             if (roomInd == -1)
                 roomInd = defaults[2]
             subject = tmpArr[0]
@@ -106,7 +114,7 @@ object TimetableBuilder {
     }
 
     private fun setTeachers(timetable: Timetable) {
-        for (it in 0 until lists[Constants.TeachersListName]!!.size)
+        for (it in 0 until lists[TeachersListInd]!!.size)
             setTeacher(timetable, it)
     }
 
@@ -115,7 +123,7 @@ object TimetableBuilder {
                 "tmToc" to token,
                 "tmrType" to "1",
                 "tmrClass" to "0",
-                "tmrTeach" to teacherInd.toString(),
+                "tmrTeach" to teacherInd,
                 "tmrRoom" to "0",
                 "tmrDay" to "0"
         ), fast)
@@ -287,18 +295,18 @@ object TimetableBuilder {
         this.fast = fast
         getToken()
         lists = getLists()
-        defaults = arrayListOf(findInd(lists[Constants.RoomsListName]!!, "S"),
-                findInd(lists[Constants.RoomsListName]!!, "F"),
-                findInd(lists[Constants.RoomsListName]!!, "T"),
-                findName(lists[Constants.TeachersListName]!!, "Сотрудник И. С."))
+        defaults = arrayListOf(findInd(lists[RoomsListInd]!!, "S"),
+                findInd(lists[RoomsListInd]!!, "F"),
+                findInd(lists[RoomsListInd]!!, "T"),
+                findName(lists[TeachersListInd]!!, "Сотрудник И. С."))
 
-        val timetable = Timetable(6, 7, classCount = lists[Constants.ClassesListName]!!.size,
-                roomsCount = lists[Constants.RoomsListName]!!.size, trap = defaults[2])
-        copyList(lists[Constants.ClassesListName]!!, timetable.classNames)
-        copyList(lists[Constants.TeachersListName]!!, timetable.teacherNames)
-        copyList(lists[Constants.DaysListName]!!, timetable.dayNames)
-        copyList(lists[Constants.RoomsListName]!!, timetable.roomNames)
-        for (obj in lists[Constants.RoomsListName]!!)
+        val timetable = Timetable(6, 7, classCount = lists[ClassesLisInd]!!.size,
+                roomsCount = lists[RoomsListInd]!!.size, trap = defaults[2])
+        copyList(lists[ClassesLisInd]!!, timetable.classNames)
+        copyList(lists[TeachersListInd]!!, timetable.teacherNames)
+        copyList(lists[DaysListInd]!!, timetable.dayNames)
+        copyList(lists[RoomsListInd]!!, timetable.roomNames)
+        for (obj in lists[RoomsListInd]!!)
             timetable.roomInd.add(obj.name)
 
         setClasses(timetable)

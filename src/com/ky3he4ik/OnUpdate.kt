@@ -199,7 +199,7 @@ val queries = hashMapOf(
             }
 
         },
-        7 to { userId: Long, data: List<Int> ->
+        7 to { _: Long, data: List<Int> ->
             when (data[1]) {
                 0 -> "Da-da?"
                 1 -> "Этот бот просто берет расписание с сайта lyceum.urfu.ru и показывает его в другой, более удобной (надеюсь) форме\n" +
@@ -213,7 +213,7 @@ val queries = hashMapOf(
                             button("Обратная связь", arrayOf(7, 3))),
                     listOf(button())))
         },
-        8 to { userId: Long, data: List<Int> ->
+        8 to { _: Long, data: List<Int> ->
             val d = (data.subList(2, 4) + listOf(-1, -1) + data.subList(4, 6)).toTypedArray()
             "Choose your day!" to InlineKeyboardMarkup().setKeyboard(listOf(
                     listOf(button("Пн", d + arrayOf(0, data[7])),
