@@ -2,6 +2,7 @@ package com.ky3he4ik
 
 import com.ky3he4ik.Timetable.TT.TimetableDay.TimetableLesson.TimetableClass.TimetableCell
 
+//TODO: use unified getXXXToday/tomorrow/near/etc.
 data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: Int, val roomsCount: Int, val trap: Int = -1) {
     class TT(daysCount: Int, lessonsCount: Int, classCount: Int) {
         val days = Array(daysCount) { TimetableDay(lessonsCount, classCount) }
@@ -16,11 +17,9 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
         operator fun get(dayInd: Int, lessonNum: Int, classInd: Int): TimetableDay.TimetableLesson.TimetableClass =
                 days[dayInd].lessons[lessonNum].classes[classInd]
 
-        operator fun get(dayInd: Int, lessonNum: Int): TimetableDay.TimetableLesson =
-                days[dayInd].lessons[lessonNum]
+        operator fun get(dayInd: Int, lessonNum: Int): TimetableDay.TimetableLesson = days[dayInd].lessons[lessonNum]
 
-        operator fun get(dayInd: Int): TimetableDay =
-                days[dayInd]
+        operator fun get(dayInd: Int): TimetableDay = days[dayInd]
 
         class TimetableDay(lessonsCount: Int, classCount: Int) {
             val lessons = Array(lessonsCount) { TimetableLesson(classCount) }
@@ -134,9 +133,7 @@ data class Timetable(val daysCount: Int, val lessonsCount: Int, val classCount: 
                 return false
             }
 
-            override fun hashCode(): Int {
-                return changeData.hashCode() * classInd;
-            }
+            override fun hashCode(): Int = changeData.hashCode() * classInd
         }
 
         /**

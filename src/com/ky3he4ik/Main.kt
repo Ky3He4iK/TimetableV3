@@ -78,28 +78,24 @@ class Main : TelegramLongPollingBot() {
         if (mes.text.isEmpty())
             return
         LOG.v("Main/Send_Edit", "Sending to ${mes.chatId}...")
-        try {
-            while (mes.text.length > 4094) {
-                val tearThere = findLastSeparator(mes.text)
-                val text = mes.text
-                mes.text = text.substring(0, tearThere)
-                sendMessage(mes)
-                mes.text = text.substring(tearThere)
+        while (mes.text.length > 4094) {
+            val tearThere = findLastSeparator(mes.text)
+            val text = mes.text
+            mes.text = text.substring(0, tearThere)
+            sendMessage(mes)
+            mes.text = text.substring(tearThere)
+        }
+        when (mes.action) {
+            TelegramAction.SEND -> {
+                val msg = SendMessage().setChatId(mes.chatId).enableMarkdown(mes.markdown).setText(mes.text)
+                        .setReplyMarkup(mes.inlineKeyboard)
+                if (mes.silent)
+                    msg.disableNotification()
+                execute(msg)
             }
-            when (mes.action) {
-                TelegramAction.SEND -> {
-                    val msg = SendMessage().setChatId(mes.chatId).enableMarkdown(mes.markdown).setText(mes.text)
-                            .setReplyMarkup(mes.inlineKeyboard)
-                    if (mes.silent)
-                        msg.disableNotification()
-                    execute(msg)
-                }
-                TelegramAction.EDIT ->
-                    execute(EditMessageText().setChatId(mes.chatId).enableMarkdown(mes.markdown).setText(mes.text)
-                            .setMessageId(mes.messageId).setReplyMarkup(mes.inlineKeyboard))
-            }
-        } catch (e: TelegramApiException) {
-            LOG.e("Main/send", e.message, e)
+            TelegramAction.EDIT ->
+                execute(EditMessageText().setChatId(mes.chatId).enableMarkdown(mes.markdown).setText(mes.text)
+                        .setMessageId(mes.messageId).setReplyMarkup(mes.inlineKeyboard))
         }
         Thread.sleep((1000 / 30.0).toLong()) // Avoiding flood limits
     }
